@@ -133,19 +133,19 @@ LD.config = {
   /* ---------------- Meals ----------------
      Starter ideas. kcal figures are rough estimates per serve. */
   meals: [
-    { name: 'Chicken burrito bowl', kcal: 550, serves: 4, tag: 'Batch cook',
+    { id: 'burrito', name: 'Chicken burrito bowl', kcal: 550, serves: 4, tag: 'Batch cook',
       why: 'Big bowl, lots of flavour from salsa and lime rather than cheese.',
       items: ['500 g chicken breast, diced', '1 cup rice (dry), cooked', '1 tin black beans', '1 tin corn', 'Salsa, lettuce, lime', 'Greek yoghurt in place of sour cream'],
       steps: 'Season and pan-fry the chicken. Portion rice, beans, corn and chicken into four containers. Add salsa, lettuce and yoghurt when you eat.' },
-    { name: 'One-pot chilli', kcal: 420, serves: 5, tag: 'Batch cook',
+    { id: 'chilli', name: 'One-pot chilli', kcal: 420, serves: 5, tag: 'Batch cook',
       why: 'Freezes well, so there is always something faster than takeaway.',
       items: ['500 g lean beef or turkey mince', '2 tins kidney beans', '2 tins chopped tomatoes', '1 onion, 2 peppers', 'Chilli powder, cumin, paprika'],
       steps: 'Brown the mince with onion, add everything else, simmer 30 minutes. Eat with a measured cup of rice or on a baked potato.' },
-    { name: 'Egg fried rice', kcal: 480, serves: 1, tag: '10 minutes',
+    { id: 'friedrice', name: 'Egg fried rice', kcal: 480, serves: 1, tag: '10 minutes',
       why: 'The quick fallback for nights with nothing prepped.',
       items: ['1 cup cooked rice (leftover is best)', '2 eggs', '1 big handful frozen mixed veg', 'Soy sauce', '1 tsp oil, measured'],
       steps: 'Fry the veg in the oil, push aside, scramble the eggs, add rice and soy sauce and stir until hot.' },
-    { name: 'Chicken wrap with yoghurt sauce', kcal: 430, serves: 1, tag: '10 minutes',
+    { id: 'wrap', name: 'Chicken wrap with yoghurt sauce', kcal: 430, serves: 1, tag: '10 minutes',
       why: 'Scratches the creamy, saucy itch without the mayo.',
       items: ['1 wrap', '120 g cooked chicken', 'Lettuce, tomato, cucumber', 'Sauce: 2 tbsp Greek yoghurt, 1 tsp hot sauce, squeeze of lemon'],
       steps: 'Mix the sauce, load the wrap, roll it up.' }
@@ -180,6 +180,26 @@ LD.config = {
       { title: 'Nothing goes overdue', body: 'A chore shows up when its time has come and waits. Tick it and the clock restarts. There is no backlog.' }
     ]
   },
+
+  /* ---------------- Weekly quests ----------------
+     Two are chosen each Monday: the one with most room to grow and one that is going well.
+     {n} is the target, which adapts: one more than last week, between min and max.
+     kind: habit (ref = habit id, counts days ticked) | workouts | stepgoal (days the goal was reached)
+           | chore (ref = chore id, counts completions) | chores (all completions) | group (ref = group id, days the whole card was ticked)
+     fixed: use this Settings value as the target instead. */
+  questXP: 60,
+  quests: [
+    { id: 'workouts', area: 'move',   kind: 'workouts', text: '{n} workouts', fixed: 'workoutsPerWeek' },
+    { id: 'bed',      area: 'sleep',  kind: 'habit', ref: 'bed',      text: 'In bed on time on {n} nights', min: 3, max: 7 },
+    { id: 'stepgoal', area: 'move',   kind: 'stepgoal',               text: 'Reach your step goal on {n} days', min: 2, max: 6 },
+    { id: 'homemade', area: 'food',   kind: 'habit', ref: 'homemade', text: 'Home-made meals on {n} days', min: 3, max: 7 },
+    { id: 'light',    area: 'sleep',  kind: 'habit', ref: 'light',    text: 'Morning daylight on {n} days', min: 3, max: 7 },
+    { id: 'mealprep', area: 'food',   kind: 'chore', ref: 'mealprep', text: 'Batch cook {n} times', min: 1, max: 2 },
+    { id: 'walk',     area: 'move',   kind: 'habit', ref: 'walk',     text: 'Sunset walk on {n} evenings', min: 3, max: 7 },
+    { id: 'chores',   area: 'upkeep', kind: 'chores',                 text: 'Finish {n} chores', min: 3, max: 7 },
+    { id: 'up',       area: 'sleep',  kind: 'habit', ref: 'up',       text: 'Up on time on {n} mornings', min: 3, max: 7 },
+    { id: 'morning',  area: 'upkeep', kind: 'group', ref: 'morning',  text: 'The whole morning list on {n} days', min: 2, max: 6 }
+  ],
 
   /* ---------------- Ranks (overall level) ---------------- */
   ranks: [

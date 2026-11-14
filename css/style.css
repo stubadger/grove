@@ -14,7 +14,9 @@
   --accent-ink: #12210f;
   --grid: #223a2b;
   --axis: #35553f;
-  --serif: "Palatino Linotype", "Book Antiqua", Palatino, Georgia, serif;
+  --serif: "Fraunces", "Palatino Linotype", "Book Antiqua", Palatino, Georgia, serif;
+  /* a fine film grain, used on the grove picture and on cards */
+  --grain: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 .9 0 0 0 0 1 0 0 0 0 .9 0 0 0 .09 0'/%3E%3C/filter%3E%3Crect width='180' height='180' filter='url(%23n)'/%3E%3C/svg%3E");
   --sans: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
   color-scheme: dark;
 }
@@ -58,14 +60,52 @@ button { cursor: pointer; }
 /* ---------- hero / grove ---------- */
 .hero { position: relative; border: 1px solid var(--line); border-radius: 18px; overflow: hidden; background: #132519; margin-bottom: 16px; }
 .scene { height: 270px; }
-.scene svg { display: block; }
-.scene .pn { fill: var(--text2); font: 12px var(--sans); }
-.scene .pl { fill: var(--text); font: 600 12px var(--sans); }
-.scene a.plant { cursor: pointer; }
-.scene a.plant:hover .pn, .scene a.plant:focus .pn { fill: var(--accent); }
-.scene a.plant { outline: none; }
+
+/* ---------- the grove picture: stacked layers (see js/scene.js) ---------- */
+.sc { position: relative; overflow: hidden; }
+.sc .lay { position: absolute; left: 0; top: 0; display: block; pointer-events: none; }
+.sc::after { content: ""; position: absolute; inset: 0; pointer-events: none;   /* soft dark edges and a little grain */
+  background: radial-gradient(ellipse at 50% 55%, transparent 55%, rgba(4, 10, 7, .42) 100%), var(--grain); }
+.splant { position: absolute; display: block; text-decoration: none; text-align: center; outline: none; }
+.splant svg { display: block; }
+a.splant:hover svg, a.splant:focus-visible svg { filter: brightness(1.18) !important; }
+a.splant:focus-visible .pn { text-decoration: underline; }
+.plab { position: absolute; left: -20px; right: -20px; line-height: 1.25; }
+.plab .pn { display: block; font-size: 12px; }
+.plab .pl { display: block; font-size: 12px; font-weight: 600; }
+
+/* scene motion: only HTML elements move, using transforms, so nothing is redrawn. All of it stops when Animations is off. */
+.sway { transform-origin: 50% 92.4%; animation: sway 6s ease-in-out infinite alternate; will-change: transform; }
+@keyframes sway { from { transform: rotate(-1.2deg); } to { transform: rotate(1.4deg); } }
+.grew { transform-origin: 50% 92.4%; animation: grew 1.8s cubic-bezier(.2, 1.3, .4, 1); }
+@keyframes grew { 0% { transform: scale(.5); filter: brightness(2.2); } 55% { transform: scale(1.1); filter: brightness(1.4); } 100% { transform: scale(1); filter: none; } }
+.scloud, .sbird { position: absolute; left: 0; animation: drift 120s linear infinite; will-change: transform; pointer-events: none; }
+.sbird { animation-duration: 52s; }
+@keyframes drift { from { transform: translateX(calc(var(--w) * -0.15)); } to { transform: translateX(calc(var(--w) * 1.1)); } }
+.sfly { position: absolute; animation: flit 9s ease-in-out infinite; will-change: transform; pointer-events: none; }
+@keyframes flit { 0%, 100% { transform: translate(0, 0); } 25% { transform: translate(16px, -12px); } 50% { transform: translate(30px, 3px); } 75% { transform: translate(10px, -18px); } }
+.flap { display: block; animation: flap .5s ease-in-out infinite alternate; }
+@keyframes flap { from { transform: scaleX(1); } to { transform: scaleX(.35); } }
+.ff, .ffs { position: absolute; width: 3.4px; height: 3.4px; border-radius: 50%; background: #f5e9a0; box-shadow: 0 0 6px 2px rgba(245, 233, 160, .55); pointer-events: none; }
 .ff { animation: ff 5s ease-in-out infinite; }
+.ffs { opacity: .7; }
 @keyframes ff { 0%, 100% { opacity: .1; transform: translateY(0); } 50% { opacity: .95; transform: translateY(-5px); } }
+.sflame { position: absolute; border-radius: 50%; background: radial-gradient(circle, rgba(255, 190, 90, .5), rgba(255, 190, 90, 0) 70%); animation: flame 1.1s ease-in-out infinite alternate; pointer-events: none; }
+@keyframes flame { from { opacity: .45; transform: scale(.92); } to { opacity: .95; transform: scale(1.06); } }
+.fall { position: absolute; left: 0; top: 0; width: 7px; height: 4px; border-radius: 0 70% 0 70%; opacity: .9; animation: fall 10s linear infinite; will-change: transform; pointer-events: none; }
+.fall.petal { width: 5px; height: 3.4px; border-radius: 50%; }
+.fall.snow { width: 3.2px; height: 3.2px; border-radius: 50%; }
+.fall.mote { width: 2.6px; height: 2.6px; border-radius: 50%; animation-name: rise; box-shadow: 0 0 4px 1px rgba(255, 243, 196, .5); }
+@keyframes fall {
+  from { transform: translate(var(--x), -14px) rotate(0deg); }
+  to { transform: translate(calc(var(--x) + var(--dx)), var(--h)) rotate(var(--r)); }
+}
+@keyframes rise {
+  0% { transform: translate(var(--x), var(--h)); opacity: 0; }
+  20%, 80% { opacity: .75; }
+  100% { transform: translate(calc(var(--x) + var(--dx)), calc(var(--h) * .3)); opacity: 0; }
+}
+.nofx .sc * { animation: none !important; }
 .herotop { position: absolute; inset: 0 0 auto 0; padding: 18px 20px; display: flex; justify-content: space-between; gap: 16px; align-items: flex-start; flex-wrap: wrap; pointer-events: none; }
 .herotop > * { pointer-events: auto; }
 .hgreet h1 { font: 600 30px/1.15 var(--serif); letter-spacing: .01em; text-shadow: 0 2px 12px rgba(0, 0, 0, .5); }
@@ -341,6 +381,87 @@ textarea.code { width: 100%; margin-top: 8px; padding: 10px; border-radius: 10px
 .levelup p { color: var(--text2); margin-top: 4px; }
 .levelup small { display: block; margin-top: 14px; color: var(--muted); }
 
+/* ---------- richer surfaces: grain, a mossy top edge and a vine in the corner of each card ---------- */
+.card { position: relative; background: var(--grain), linear-gradient(180deg, var(--surface), #152419); box-shadow: inset 0 1px 0 rgba(167, 201, 87, .10), 0 6px 18px rgba(0, 0, 0, .18); }
+.card::before { content: ""; position: absolute; top: -1px; left: 18px; right: 18px; height: 2px; border-radius: 2px; pointer-events: none;
+  background: linear-gradient(90deg, transparent, color-mix(in srgb, var(--accent2) 55%, transparent) 20%, color-mix(in srgb, var(--accent) 45%, transparent) 50%, color-mix(in srgb, var(--accent2) 55%, transparent) 80%, transparent); }
+.hero .datenav { color: var(--text); text-shadow: 0 1px 6px rgba(0, 0, 0, .7); }
+.card::after { content: ""; position: absolute; top: 0; right: 0; width: 74px; height: 74px; pointer-events: none; opacity: .3; border-top-right-radius: 16px;
+  background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 74 74'%3E%3Cpath d='M74 6C56 4 40 10 34 24M74 22C62 22 54 30 52 42' stroke='%233a5c45' stroke-width='1.6' fill='none' stroke-linecap='round'/%3E%3Cg fill='%233f7d45'%3E%3Cpath d='M58 6q-7 -6 -12 0q6 5 12 0z'/%3E%3Cpath d='M44 14q-9 -1 -10 7q8 1 10 -7z'/%3E%3Cpath d='M64 22q-2 -8 -9 -6q1 8 9 6z'/%3E%3Cpath d='M54 34q-8 0 -8 8q8 0 8 -8z'/%3E%3C/g%3E%3Cg fill='%236aa84f'%3E%3Cpath d='M68 10q-3 -7 -9 -4q2 7 9 4z'/%3E%3Cpath d='M38 22q-7 2 -5 9q7 -2 5 -9z'/%3E%3C/g%3E%3C/svg%3E") no-repeat; }
+.card > * { position: relative; z-index: 1; }
+.tile { background: var(--grain), var(--surface); }
+body { background-image: var(--grain),
+    radial-gradient(900px 500px at 12% -5%, rgba(106, 168, 79, .13), transparent 60%),
+    radial-gradient(800px 600px at 100% 30%, rgba(63, 125, 69, .10), transparent 60%),
+    radial-gradient(700px 500px at 30% 100%, rgba(167, 201, 87, .05), transparent 60%); }
+h1, h2, h3, h4, .rank, .brand { font-optical-sizing: auto; }
+.section-title { display: flex; align-items: center; gap: 12px; }
+.section-title::after { content: ""; flex: 1; height: 1px; background: linear-gradient(90deg, var(--line2), transparent); }
+.lede { color: var(--text2); margin: -4px 2px 14px; max-width: 70ch; font-size: 14px; }
+.xpbar i, .badge { background: linear-gradient(90deg, var(--accent2), var(--accent)); }
+.badge { background: linear-gradient(160deg, var(--accent), var(--accent2)); }
+.hint a, .empty a { color: var(--accent); }
+
+/* ---------- section banner (top of each section page) ---------- */
+.pagebanner .scene { height: 196px; }
+.pagebanner .herotop { inset: 0; display: block; padding: 18px 22px; background: linear-gradient(90deg, rgba(7, 15, 10, .86), rgba(7, 15, 10, .5) 50%, rgba(7, 15, 10, 0) 78%); }
+.pagebanner .ph-main { max-width: 560px; }
+.pagebanner .eyebrow { color: var(--text2); }
+.pagebanner h1 { text-shadow: 0 2px 10px rgba(0, 0, 0, .5); }
+.pagebanner .blurb { margin-bottom: 10px; }
+.pagebanner .hint { color: var(--text2); margin-top: 6px; }
+
+/* ---------- Grove page ---------- */
+.grovebig .scene { height: 440px; }
+.decorgrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(104px, 1fr)); gap: 10px; }
+.decor { display: grid; justify-items: center; gap: 2px; padding: 10px 6px 9px; border-radius: 12px; border: 1px solid var(--line); background: var(--bg2); text-align: center; color: var(--muted); }
+.decor b { font: 600 13px var(--sans); color: var(--text2); }
+.decor span { font-size: 11.5px; }
+.decor .decoricon { opacity: .45; filter: saturate(.5); }
+.decor.on { border-color: color-mix(in srgb, var(--accent2) 60%, transparent); background: color-mix(in srgb, var(--accent2) 12%, var(--bg2)); }
+.decor.on b { color: var(--text); }
+.decor.on span { color: var(--accent); }
+.decor.on .decoricon { opacity: 1; filter: none; }
+.decor.locked { cursor: default; }
+.decor.locked .decoricon { opacity: .22; filter: grayscale(1) brightness(.7); }
+.decor:not(.locked):hover { border-color: var(--line2); }
+.found { display: flex; align-items: center; gap: 12px; justify-content: center; margin-top: 14px; padding: 8px 14px; border-radius: 12px; background: rgba(0, 0, 0, .25); text-align: left; }
+.found span { font-size: 12px; color: var(--muted); }
+.found b { display: block; font: 600 16px var(--serif); color: var(--text); }
+
+/* ---------- quests, week in review, insights ---------- */
+.quest { padding: 9px 0; border-bottom: 1px solid var(--line); }
+.quest:last-of-type { border-bottom: 0; }
+.quest .q1 { display: flex; align-items: center; gap: 9px; margin-bottom: 7px; font-size: 14px; }
+.quest .q1 b { flex: 1; min-width: 0; font-weight: 600; }
+.quest .dot { width: 8px; height: 8px; border-radius: 50%; flex: none; }
+.quest.done .count { color: var(--accent); }
+.quest.done .meter i { background: var(--accent); }
+.weekhead { margin-bottom: 16px; }
+.weekhead h1 { font: 600 28px/1.2 var(--serif); margin: 2px 0 12px; }
+.rate small { color: var(--muted); font-size: 12px; }
+.rate small.up { color: #8fd08f; }
+.checkup { border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px; background: var(--bg2); }
+.checkup b { font: 600 16px var(--serif); }
+.checkup p { color: var(--text2); font-size: 14px; margin: 4px 0 12px; }
+.insight .lead { font: 600 18px/1.3 var(--serif); margin: -2px 0 12px; }
+
+/* ---------- meal planner ---------- */
+.chips { display: flex; flex-wrap: wrap; gap: 8px; }
+.chip { display: inline-flex; align-items: center; gap: 4px; padding: 6px 6px 6px 12px; border-radius: 999px; border: 1px solid color-mix(in srgb, var(--accent2) 55%, transparent); background: color-mix(in srgb, var(--accent2) 14%, var(--bg2)); font-size: 14px; }
+.chip .x { width: 24px; height: 24px; border-radius: 50%; display: grid; place-items: center; line-height: 1; }
+.chip .x:hover { background: rgba(255, 255, 255, .1); color: var(--text); }
+.shop { margin-top: 16px; padding-top: 14px; border-top: 1px solid var(--line); }
+.shophead { display: flex; align-items: center; gap: 12px; margin-bottom: 4px; }
+.shophead b { font: 600 16px var(--serif); flex: 1; }
+.shopgrid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 4px 18px; }
+.tick.small { min-height: 38px; padding: 6px 10px; font-size: 14px; }
+.tick.small .box { width: 20px; height: 20px; border-radius: 6px; }
+.mealform { display: grid; gap: 8px; margin-top: 10px; max-width: 560px; }
+.mealform textarea { width: 100%; padding: 9px 11px; border-radius: 10px; border: 1px solid var(--line2); background: var(--bg2); color: var(--text); font: inherit; font-size: 15px; resize: vertical; }
+.mealform .btn { justify-self: start; }
+.meal .btn.on { background: color-mix(in srgb, var(--accent2) 22%, var(--bg2)); border-color: var(--accent2); color: var(--text); }
+
 /* ---------- small screens ---------- */
 @media (max-width: 760px) {
   .navin { height: 50px; }
@@ -358,6 +479,11 @@ textarea.code { width: 100%; margin-top: 8px; padding: 10px; border-radius: 10px
   .pagehead { flex-direction: column; align-items: flex-start; }
   .wkrow, .wkhead { grid-template-columns: 84px 1fr 74px; gap: 8px; }
   .ph-main h1 { font-size: 26px; }
+  .pagebanner .scene { height: 250px; }
+  .pagebanner .herotop { padding: 14px 16px; background: linear-gradient(180deg, rgba(7, 15, 10, .82), rgba(7, 15, 10, .55) 62%, rgba(7, 15, 10, 0)); }
+  .grovebig .scene { height: 340px; }
+  #nav nav a { min-width: 40px; }
+  .card::after { width: 56px; height: 56px; }
 }
 @media (prefers-reduced-motion: reduce) {
   * { animation-duration: .01ms !important; transition: none !important; }

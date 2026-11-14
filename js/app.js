@@ -25,7 +25,8 @@
     list: 'M8 6h12M8 12h12M8 18h12M4 6h.01M4 12h.01M4 18h.01',
     lock: 'M6 11h12v9H6zM8.5 11V8a3.5 3.5 0 0 1 7 0v3',
     pencil: 'M4 20l1-4L16.5 4.5a2.1 2.1 0 0 1 3 3L8 19zM14.5 6.5l3 3',
-    cloud: 'M7 18a4 4 0 0 1-.6-7.95A5.5 5.5 0 0 1 17 9.5a4.25 4.25 0 0 1 .5 8.5z'
+    cloud: 'M7 18a4 4 0 0 1-.6-7.95A5.5 5.5 0 0 1 17 9.5a4.25 4.25 0 0 1 .5 8.5z',
+    sprout: 'M12 21V11M12 11C12 7 9 5 5 5c0 4 3 6 7 6M12 13c0-3 2.5-5 6.5-5 0 3.5-2.5 5-6.5 5'
   };
   function icon(n) { return '<svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="' + (ICON[n] || '') + '"/></svg>'; }
 
@@ -62,7 +63,7 @@
   /* ---------------- navigation ---------------- */
   function route() { return (location.hash || '#/').replace(/^#\/?/, ''); }
   function nav(r, st) {
-    var items = [{ r: '', n: 'Today', i: 'leaf' }]
+    var items = [{ r: '', n: 'Today', i: 'leaf' }, { r: 'grove', n: 'Grove', i: 'sprout' }]
       .concat(S.areas().map(function (a) { return { r: a.id, n: a.name, i: a.icon }; }))
       .concat([{ r: 'journey', n: 'Journey', i: 'peak' }, { r: 'settings', n: 'Settings', i: 'sliders' }]);
     var p = G.progress(st.total, C.xp.base);
@@ -93,8 +94,7 @@
   function hero(st, date, isToday) {
     var p = G.progress(st.total, C.xp.base), rank = G.rank(p.level), hr = D.hour();
     var todayXP = (st.perDay[date] || { total: 0 }).total;
-    var sky = S.state.settings.ui.sky;
-    var phase = sky !== 'auto' ? sky : !isToday ? 'day' : hr < 8 ? 'dawn' : hr < 17 ? 'day' : hr < 20 ? 'dusk' : 'night';
+    var phase = phaseNow(isToday);
     var greet = !isToday ? D.fmt(date, { weekday: 'long' }) : hr < 12 ? 'Good morning' : hr < 18 ? 'Good afternoon' : 'Good evening';
     return '<section class="hero"><div class="scene" data-scene="' + phase + '"></div><div class="herotop"><div class="hgreet"><h1>' + greet + '</h1>' +
       '<div class="datenav"><button data-act="date" data-d="-1" aria-label="Previous day">‹</button><span>' + D.fmt(date, { weekday: 'long', day: 'numeric', month: 'long' }) + '</span>' +
@@ -142,7 +142,7 @@
     var up = list.filter(function (x) { return !x.s.due && !x.s.doneToday; }).sort(function (a, b) { return a.s.dueIn - b.s.dueIn; });
     return '<section class="card"><header><h3>' + icon('home') + ' Chores</h3><a class="more" href="#/upkeep">Details</a></header>' +
       (due.length ? '<div class="ticks">' + due.map(function (x) { return choreTick(x.c, date, x.s); }).join('') + '</div>' : '<p class="empty">Nothing is due. The den is in order.</p>') +
-      (up.length ? '<p class="hint">Next: ' + esc(S.text(up[0].c)) + ', ' + dueText(up[0].s.dueIn) + '.</p>' : '') + '</section>';
+      (up.length ? '<p class="hint">Next: ' + esc(S.text(up[0].c)) + ', ' + dueText(up[0].s.dueIn) + '.</p>' : '') + LD.more.menuHint() + '</section>';
   }
   function taskCard(date) {
     if (!S.isOn('areas', LD.areaById.tasks)) return '';
@@ -192,17 +192,18 @@
       if (g.id === 'day') cards += moveCard(date, isToday);
       cards += groupCard(g, date, now);
     });
-    return welcome + hero(st, date, isToday) + '<div class="cards flow">' + (isToday ? lastNight(date) : '') + cards + choreCard(date) + taskCard(date) + '</div>' +
+    return welcome + (isToday ? LD.more.recapBanner() : '') + hero(st, date, isToday) + '<div class="cards flow">' + (isToday ? lastNight(date) : '') + cards + choreCard(date) + taskCard(date) + (isToday ? LD.more.questsCard() : '') + '</div>' +
       '<h2 class="section-title">How it is going</h2><div class="cards">' + weekSection(date) + canopyCard(st) + '</div>';
   }
 
   /* ================= SECTION PAGES ================= */
   function areaHead(a, st) {
     var p = G.progress(st.areaXP[a.id] || 0, C.xp.areaBase), stage = G.stage(p.level), ns = G.nextStageLevel(p.level);
-    var plant = S.plantOf(a);
-    return '<section class="card pagehead"><div class="ph-plant">' + P.single(plant, stage, 132) + '</div><div class="ph-main"><p class="eyebrow">Skill</p><h1>' + a.name + '</h1>' +
+    var plant = S.plantOf(a), sky = { sleep: 'night', move: 'dawn', upkeep: 'dusk' }[a.id] || 'day';   /* each section has its own time of day */
+    return '<section class="hero pagebanner"><div class="scene" data-scene="' + sky + '" data-mode="banner" data-area="' + a.id + '"></div>' +
+      '<div class="herotop"><div class="ph-main"><p class="eyebrow">Skill · stage ' + (stage + 1) + ' of 6</p><h1>' + a.name + '</h1>' +
       '<p class="blurb">' + esc(a.blurb || '') + '</p><div class="lvrow"><span class="badge sm">' + p.level + '</span>' + xpBar(p) + '<span class="xpnum">' + num(p.into) + ' / ' + num(p.need) + ' XP</span></div>' +
-      '<p class="hint">' + (ns ? 'Your ' + P.names[plant] + ' will grow again at level ' + ns + '.' : 'Your ' + P.names[plant] + ' has finished growing.') + '</p></div></section>';
+      '<p class="hint">' + (ns ? 'Your ' + P.names[plant] + ' will grow again at level ' + ns + '.' : 'Your ' + P.names[plant] + ' has finished growing.') + '</p></div></div></section>';
   }
   function span28() { return Math.min(28, Math.max(1, D.diff(D.today(), S.state.startDate) + 1)); }
   function habitStats(a) {
@@ -362,15 +363,9 @@
   }
 
   /* ---- food ---- */
-  function foodExtras() {
-    var meals = '<section class="card span2"><header><h3>' + icon('apple') + ' Meals worth prepping</h3></header><p class="sub">Starter ideas. Calories are rough estimates per serve.</p><div class="cards">' +
-      C.meals.map(function (m) {
-        return '<div class="meal"><h4>' + esc(m.name) + '</h4><div class="meta">' + esc(m.tag) + ' · about ' + m.kcal + ' kcal · serves ' + m.serves + '</div><p>' + esc(m.why) + '</p>' +
-          '<details><summary>Ingredients and method</summary><ul>' + m.items.map(function (i) { return '<li>' + esc(i) + '</li>'; }).join('') + '</ul><p>' + esc(m.steps) + '</p></details></div>';
-      }).join('') + '</div></section>';
-    var swaps = '<section class="card span2"><header><h3>Swaps</h3></header><div class="tvwrap" style="max-height:none;margin:0"><table><thead><tr><th>Instead of</th><th>Try</th></tr></thead><tbody>' +
+  function swapsCard() {
+    return '<section class="card span2"><header><h3>Swaps</h3></header><div class="tvwrap" style="max-height:none;margin:0"><table><thead><tr><th>Instead of</th><th>Try</th></tr></thead><tbody>' +
       C.swaps.map(function (x) { return '<tr><td>' + esc(x.from) + '</td><td>' + esc(x.to) + '</td></tr>'; }).join('') + '</tbody></table></div></section>';
-    return meals + swaps;
   }
   function tasksPage(a, st) {
     var days = Object.keys(S.state.days).filter(function (d) { return (S.state.days[d].tasks || []).length; }).sort().reverse().slice(0, 14);
@@ -387,7 +382,8 @@
       var d14 = D.range(D.today(), 14), since = D.add(D.today(), -27);
       extraTiles = tile('Home-made days, last 14', String(d14.filter(function (d) { return S.day(d).checks.homemade; }).length), 'Days without takeaway') +
         tile('Batch cooks, last 28 days', String((S.state.chores.mealprep || []).filter(function (d) { return d >= since; }).length), 'From the meal prep chore');
-      bottom = choreBlocks(a, function (c) { return c.area === 'food'; }) + foodExtras();
+      top = LD.more.mealPlan();
+      bottom = choreBlocks(a, function (c) { return c.area === 'food'; }) + LD.more.mealBook() + swapsCard();
     }
     if (a.id === 'upkeep') {
       var since2 = D.add(D.today(), -27), n = 0, ready = 0;
@@ -436,7 +432,7 @@
     }).join('') + '</div></section>';
     var tiles = '<div class="tiles">' + tile('Total XP', num(st.total)) + tile('Days logged', String(st.totals.daysLogged)) + tile('Habit ticks', num(st.totals.ticks)) +
       tile('Workouts', String(st.totals.workouts)) + tile('Chores done', String(st.totals.chores)) + tile('Steps walked', num(st.totals.steps)) + '</div>';
-    return head + tiles + '<div class="cards">' + trail + skills + xpCard + cumCard + log + miles + '</div>';
+    return head + tiles + '<div class="cards">' + trail + skills + xpCard + cumCard + log + miles + '</div>' + LD.more.insights();
   }
 
   /* ================= SETTINGS ================= */
@@ -474,17 +470,9 @@
       fld('Workouts per week', 'set', 'workoutsPerWeek', 'number', s.workoutsPerWeek, 'min="1" max="7"') + '</div></section>';
 
     var look = '<section class="card"><header><h3>' + icon('sun') + ' Look and feel</h3></header><div class="fields">' +
-      fld('Dashboard name', 'ui', 'name', 'text', ui.name, 'maxlength="24" placeholder="' + esc(C.appName) + '"') +
-      '<div class="fld"><label for="f-ui-sky">Sky</label><select id="f-ui-sky" data-ui="sky" data-key="f-ui-sky">' +
-      options([['auto', 'Follows the time of day'], ['dawn', 'Always dawn'], ['day', 'Always day'], ['dusk', 'Always dusk'], ['night', 'Always night']], ui.sky) + '</select></div></div>' +
-      check('Animations and celebrations', 'XP pop-ups, the level-up screen and fireflies.', 'fx') + '</section>';
-
-    var plants = '<section class="card"><header><h3>' + icon('tree') + ' Plants</h3></header><p class="sub">Choose what grows for each section. The picture shows it fully grown.</p>' +
-      active.map(function (a) {
-        var cur = S.plantOf(a), stage = G.stage(G.level(st.areaXP[a.id] || 0, C.xp.areaBase));
-        return '<div class="plantrow">' + P.single(cur, 5, 68) + '<div class="nm"><b>' + a.name + '</b><small>Growth stage ' + (stage + 1) + ' of 6 so far</small>' +
-          '<select data-plant="' + a.id + '" aria-label="Plant for ' + a.name + '" data-key="pl-' + a.id + '">' + options(P.list, cur) + '</select></div></div>';
-      }).join('') + '</section>';
+      fld('Dashboard name', 'ui', 'name', 'text', ui.name, 'maxlength="24" placeholder="' + esc(C.appName) + '"') + '</div>' +
+      check('Animations and celebrations', 'Moving plants and falling leaves, XP pop-ups and the level-up screen.', 'fx') +
+      '<p class="hint">Plants, decorations, the season and the sky are on the <a href="#/grove">Grove page</a>.</p></section>';
 
     var sections = '<section class="card"><header><h3>' + icon('leaf') + ' Sections</h3></header><p class="sub">Switch a section on when you are ready for it. Turning one off hides it and keeps its history.</p>' +
       C.areas.map(function (a) { return '<label class="sw"><span class="nm">' + a.name + '<small>' + esc(a.blurb || '') + '</small></span>' + toggle('areas', a, a.name) + '</label>'; }).join('') + '</section>';
@@ -520,7 +508,17 @@
       '<button class="btn" data-act="export">Download backup</button><label class="btn" style="cursor:pointer">Restore backup<input type="file" accept="application/json,.json" data-import hidden></label>' +
       (S.state.demo ? '<button class="btn primary" data-act="demo-clear">Clear demo data</button>' : '<button class="btn ghost" data-act="demo-load">Show demo data</button>') +
       '<button class="btn danger" data-act="reset">Erase everything</button></div></section>';
-    return '<h2 class="section-title" style="margin-top:4px">Settings</h2><div class="cards flow wide">' + targets + look + plants + sections + habits + chores + day + rewards + syncCard() + data + '</div>';
+    return '<h2 class="section-title" style="margin-top:4px">Settings</h2><div class="cards flow wide">' + targets + look + sections + habits + chores + day + rewards + syncCard() + data + '</div>';
+  }
+  /* choose what grows for each section (shown on the Grove page) */
+  function plantsCard(st) {
+    return '<section class="card"><header><h3>' + icon('tree') + ' Plants</h3></header><p class="sub">Choose what grows for each section. The picture shows it fully grown.</p>' +
+      S.areas().map(function (a) {
+        var cur = S.plantOf(a), stage = G.stage(G.level(st.areaXP[a.id] || 0, C.xp.areaBase));
+        return '<div class="plantrow">' + P.single(cur, 5, 68) + '<div class="nm"><b>' + a.name + '</b><small>Growth stage ' + (stage + 1) + ' of 6 so far</small>' +
+          '<select data-plant="' + a.id + '" aria-label="Plant for ' + a.name + '" data-key="pl-' + a.id + '">' +
+          P.list.map(function (o) { return '<option value="' + o[0] + '"' + (o[0] === cur ? ' selected' : '') + '>' + o[1] + '</option>'; }).join('') + '</select></div></div>';
+      }).join('') + '</section>';
   }
   function ago(ts) {
     var m = Math.round((Date.now() - ts) / 60000);
@@ -560,30 +558,50 @@
       var w = Math.floor(el.clientWidth); if (w < 160) w = 320;
       el.innerHTML = charts[+el.dataset.chart](w);
     });
-    var sc = document.querySelector('.scene');
-    if (sc) {
-      var st = G.compute(), items = S.areas().map(function (a) {
+    /* every picture of the grove: the Today header, the big one on the Grove page, and section banners */
+    var scenes = document.querySelectorAll('[data-scene]');
+    if (scenes.length) {
+      var st = G.compute(), ui = S.state.settings.ui, hidden = S.state.settings.decor, shown = {};
+      var items = S.areas().map(function (a) {
         var L = G.level(st.areaXP[a.id] || 0, C.xp.areaBase);
         return { id: a.id, name: a.name, plant: S.plantOf(a), stage: G.stage(L), level: L };
       });
-      sc.innerHTML = P.scene(Math.max(300, Math.floor(sc.clientWidth)), sc.clientHeight || 270, sc.dataset.scene, items, { still: !S.state.settings.ui.fx });
+      P.decor.forEach(function (d) { if (st.level >= d.level && hidden[d.id] !== false) shown[d.id] = true; });
+      Array.prototype.forEach.call(scenes, function (sc) {
+        var mode = sc.dataset.mode || 'hero', only = sc.dataset.area;
+        sc.innerHTML = P.scene(Math.max(300, Math.floor(sc.clientWidth)), sc.clientHeight || 270, {
+          phase: sc.dataset.scene, season: P.seasonNow(ui.season, ui.hemi), still: !ui.fx, decor: shown, grew: view.grew,
+          items: only ? items.filter(function (i) { return i.id === only; }) : items, banner: mode === 'banner', big: mode === 'grove'
+        });
+      });
+      view.grew = null;
     }
+  }
+  /* the sky to show: the owner's fixed choice, or by the clock */
+  function phaseNow(live) {
+    var sky = S.state.settings.ui.sky, hr = D.hour();
+    return sky !== 'auto' ? sky : !live ? 'day' : hr < 8 ? 'dawn' : hr < 17 ? 'day' : hr < 20 ? 'dusk' : 'night';
   }
   function render() {
     var r = route(), st = G.compute(), a = LD.areaById[r], html;
     var ae = document.activeElement, key = ae && ae.dataset ? ae.dataset.key : null;
     charts = [];
     $nav.innerHTML = nav(a && !S.isOn('areas', a) ? '' : r, st);
+    var extra = LD.pages[r];
     if (r === 'journey') html = journey(st);
     else if (r === 'settings') html = settings(st);
+    else if (extra) html = extra(st);
     else if (a && S.isOn('areas', a)) html = areaPage(a, st);
     else html = home(st);
     document.body.classList.toggle('nofx', !S.state.settings.ui.fx);
+    var season = P.seasons[P.seasonNow(S.state.settings.ui.season, S.state.settings.ui.hemi)];   /* the season tints the whole page */
+    document.body.style.setProperty('--accent', season.accent);
+    document.body.style.setProperty('--accent2', season.accent2);
     $app.innerHTML = banner() + html;
     mount();
     $tip.hidden = true;
     if (key) { var el = $app.querySelector('[data-key="' + key + '"]'); if (el) el.focus({ preventScroll: true }); }
-    document.title = (r === 'journey' ? 'Journey' : r === 'settings' ? 'Settings' : a && S.isOn('areas', a) ? a.name : 'Today') + ' · ' + S.name();
+    document.title = ({ journey: 'Journey', settings: 'Settings', grove: 'Grove', week: 'Week in review' }[r] || (a && S.isOn('areas', a) ? a.name : 'Today')) + ' · ' + S.name();
   }
 
   /* ---------------- effects ---------------- */
@@ -600,20 +618,25 @@
     var old = $fx.querySelector('.levelup'); if (old) old.remove();
     var el = document.createElement('div'), r = G.rank(L), isNew = C.ranks.some(function (x) { return x.level === L; });
     el.className = 'levelup';
-    el.innerHTML = '<div class="lu"><p class="eyebrow">Level up</p><div class="badge">' + L + '</div><h2>' + (isNew ? 'You are now a ' + esc(r.name) : 'Level ' + L) + '</h2><p>' + (isNew ? 'A new rank on the trail.' : esc(r.name) + ', and climbing.') + '</p><small>Click anywhere to carry on</small></div>';
+    var found = P.decor.filter(function (d) { return d.level === L; })[0];
+    el.innerHTML = '<div class="lu"><p class="eyebrow">Level up</p><div class="badge">' + L + '</div><h2>' + (isNew ? 'You are now a ' + esc(r.name) : 'Level ' + L) + '</h2><p>' + (isNew ? 'A new rank on the trail.' : esc(r.name) + ', and climbing.') + '</p>' +
+      (found ? '<div class="found">' + P.decorIcon(found.id, 64) + '<span>New in your grove<b>' + found.name + '</b></span></div>' : '') + '<small>Click anywhere to carry on</small></div>';
     el.addEventListener('click', function () { el.remove(); });
     $fx.appendChild(el);
     setTimeout(function () { el.remove(); }, 6000);
   }
   function snap() {
-    var st = G.compute(), o = { total: st.total, level: st.level, areas: {} };
+    var st = G.compute(), o = { total: st.total, level: st.level, areas: {}, quests: {} };
     C.areas.forEach(function (a) { o.areas[a.id] = G.level(st.areaXP[a.id] || 0, C.xp.areaBase); });
+    LD.quests.state(D.weekStart(D.today())).forEach(function (q) { if (q.done) o.quests[q.q.id] = q.text; });
     return o;
   }
   /* run a change, redraw, then celebrate whatever it earned */
   function act(fn, ev) {
     var b = snap(); fn(); var a = snap(), d = a.total - b.total, fx = S.state.settings.ui.fx;
+    C.areas.forEach(function (ar) { if (G.stage(a.areas[ar.id]) > G.stage(b.areas[ar.id])) view.grew = ar.id; });   /* that plant grows in front of you */
     render();
+    for (var qid in a.quests) if (!b.quests[qid]) toast('Quest complete: ' + a.quests[qid]);
     if (!fx) { if (a.level > b.level) toast('Level ' + a.level + ' reached'); return; }
     if (d > 0 && ev) {
       var x = ev.clientX, y = ev.clientY;
@@ -674,6 +697,8 @@
       case 'sync-off':
         if (confirm('Stop syncing on this device? Your data stays here and in the sheet.')) { LD.sync.disconnect(); view.syncMsg = null; render(); }
         break;
+      default:
+        if (LD.actions[d.act]) LD.actions[d.act](d, e);   /* buttons that belong to pages-more.js */
     }
   });
   document.addEventListener('change', function (e) {
@@ -711,7 +736,8 @@
     e.preventDefault();
     var v = f.elements.t.value.trim();
     if (!v) return;
-    if (kind === 'task') S.addTask(f.dataset.date, v);
+    if (LD.onSubmit(kind, f, v)) { /* handled by pages-more.js */ }
+    else if (kind === 'task') S.addTask(f.dataset.date, v);
     else if (kind === 'sync-connect') {
       view.syncMsg = 'Connecting.';
       LD.sync.connect(v, f.elements.k.value).then(function (err) { view.syncMsg = err; render(); if (!err) toast('Connected. Your data is syncing.'); });
@@ -768,6 +794,10 @@
     LD.sync.run();
   });
   window.addEventListener('online', function () { LD.sync.run(); });
+
+  /* helpers that pages-more.js and extras.js use */
+  LD.ui = { icon: icon, tile: tile, chart: chart, chartCard: chartCard, tableView: tableView, legend: legend, xpBar: xpBar, txt: txt, fmtTime: fmtTime, shift: shift,
+            num: num, toast: toast, render: render, act: act, view: view, phaseNow: phaseNow, copyText: copyText, plantsCard: plantsCard };
 
   S.load();
   render();

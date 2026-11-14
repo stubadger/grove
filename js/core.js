@@ -28,7 +28,7 @@
 
   LD.areaById = {}; C.areas.forEach(function (a) { LD.areaById[a.id] = a; });
   var cfgHabit = {}; C.habits.forEach(function (h) { cfgHabit[h.id] = h; });
-  var UI_DEFAULTS = { sky: 'auto', fx: true, lastNight: true, lastNightUntil: 15, suggestGoal: true, name: '' };
+  var UI_DEFAULTS = { sky: 'auto', season: 'auto', hemi: 'auto', fx: true, lastNight: true, lastNightUntil: 15, suggestGoal: true, name: '' };
 
   /* ---------------- store ---------------- */
   var KEY = 'grove.v1', REAL = 'grove.v1.real';
@@ -45,11 +45,13 @@
       s.plants = {};                             // section id -> plant id
       s.text = {};                               // habit or chore id -> renamed text
       s.xp = {};                                 // overrides for config xp values
-      s.custom = { habits: [], chores: [] };     // items added in Settings
+      s.custom = { habits: [], chores: [], meals: [] };   // items added by the owner
+      s.decor = {};                              // decoration id -> false when hidden
       s.ui = {};
       for (var u in UI_DEFAULTS) s.ui[u] = UI_DEFAULTS[u];
       s.dayStartsHour = C.dayStartsHour;
-      return { v: 1, startDate: D.today(), settings: s, days: {}, chores: {}, _mod: {}, _dirty: {} };
+      /* weeks: Monday date -> { quests, meals, shop, skip, recapSeen } */
+      return { v: 1, startDate: D.today(), settings: s, days: {}, chores: {}, weeks: {}, _mod: {}, _dirty: {} };
     },
     normalise: function (st) {
       var b = S.blank();
@@ -60,9 +62,11 @@
       for (var u in UI_DEFAULTS) if (s.ui[u] === undefined) s.ui[u] = UI_DEFAULTS[u];
       if (!s.custom.habits) s.custom.habits = [];
       if (!s.custom.chores) s.custom.chores = [];
+      if (!s.custom.meals) s.custom.meals = [];
       st.settings = s;
       st.days = st.days || {};
       st.chores = st.chores || {};
+      st.weeks = st.weeks || {};
       st.startDate = st.startDate || b.startDate;
       st._mod = st._mod || {};       // record id -> when it last changed (for sync)
       st._dirty = st._dirty || {};   // record ids changed here and not yet sent
@@ -99,6 +103,7 @@
       var st = S.state, r = { settings: st.settings, meta: { startDate: st.startDate, welcomed: !!st.welcomed } }, k;
       for (k in st.days) r['day:' + k] = st.days[k];
       for (k in st.chores) r['chore:' + k] = st.chores[k];
+      for (k in st.weeks) r['week:' + k] = st.weeks[k];
       return r;
     },
     resnap: function () { snap = {}; var rec = S.records(); for (var id in rec) snap[id] = JSON.stringify(rec[id]); },
@@ -127,6 +132,7 @@
         else if (r.id === 'meta') { if (v.startDate) st.startDate = v.startDate; st.welcomed = !!v.welcomed; }
         else if (r.id.indexOf('day:') === 0) st.days[r.id.slice(4)] = v;
         else if (r.id.indexOf('chore:') === 0) st.chores[r.id.slice(6)] = v;
+        else if (r.id.indexOf('week:') === 0) st.weeks[r.id.slice(5)] = v;
         else return;
         st._mod[r.id] = r.mod; delete st._dirty[r.id]; n++;
       });
@@ -292,7 +298,11 @@
         }
         st.chores[ch.id] = arr;
       });
-      S.state = st; S.save();
+      S.state = st;
+      if (LD.quests) {   /* give every demo week its quests, oldest first, as real use would */
+        for (var wk = D.weekStart(st.startDate); wk <= D.weekStart(end); wk = D.add(wk, 7)) st.weeks[wk] = { quests: LD.quests.pick(wk) };
+      }
+      S.save();
     },
     clearDemo: function () {
       var raw = null;
@@ -340,14 +350,16 @@
     },
     /* everything derived from the log, recomputed on each render */
     compute: function () {
-      var set = {}, id, d;
+      var set = {}, id, d, quest = LD.quests ? LD.quests.xpByDate() : {};
       for (d in S.state.days) set[d] = 1;
       for (id in S.state.chores) S.state.chores[id].forEach(function (x) { set[x] = 1; });
+      for (d in quest) set[d] = 1;
       var list = Object.keys(set).sort();
       var st = { list: list, perDay: {}, total: 0, areaXP: {}, levelLog: [], level: 1,
                  totals: { steps: 0, workouts: 0, ticks: 0, daysLogged: 0, goalDays: 0, chores: 0, bestSteps: 0 } };
       list.forEach(function (date) {
-        var x = G.dayXP(date), sum = 0;
+        var x = G.dayXP(date), sum = 0, qa;
+        for (qa in (quest[date] || {})) x[qa] = (x[qa] || 0) + quest[date][qa];   /* weekly quest rewards land on the day they were finished */
         for (var a in x) { st.areaXP[a] = (st.areaXP[a] || 0) + x[a]; sum += x[a]; }
         st.perDay[date] = { areas: x, total: sum };
         st.total += sum;
