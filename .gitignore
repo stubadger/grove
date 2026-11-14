@@ -1,0 +1,5 @@
+# Kept on this computer only, not published
+CLAUDE.md
+.claude/
+*.bak
+grove-backup-*.json
