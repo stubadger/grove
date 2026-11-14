@@ -28,7 +28,7 @@
 
   LD.areaById = {}; C.areas.forEach(function (a) { LD.areaById[a.id] = a; });
   var cfgHabit = {}; C.habits.forEach(function (h) { cfgHabit[h.id] = h; });
-  var UI_DEFAULTS = { sky: 'auto', season: 'auto', hemi: 'auto', fx: true, lastNight: true, lastNightUntil: 15, suggestGoal: true, name: '' };
+  var UI_DEFAULTS = { sky: 'auto', season: 'auto', hemi: 'auto', falling: true, fx: true, lastNight: true, lastNightUntil: 15, suggestGoal: true, name: '' };
 
   /* ---------------- store ---------------- */
   var KEY = 'grove.v1', REAL = 'grove.v1.real';

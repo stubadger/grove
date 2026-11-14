@@ -16,7 +16,7 @@
 
   /* ================= Grove tab ================= */
   LD.pages.grove = function (st) {
-    var U = LD.ui, s = S.state.settings, season = P.seasons[P.seasonNow(s.ui.season, s.ui.hemi)];
+    var U = LD.ui, s = S.state.settings, season = P.seasons[P.seasonNow(s.ui.season, s.ui.hemi)], sk = P.skyText(s.ui.hemi);
     var have = P.decor.filter(function (d) { return d.level <= st.level; }), next = P.decor.filter(function (d) { return d.level > st.level; })[0];
     var opts = function (list, v) { return list.map(function (o) { return '<option value="' + o[0] + '"' + (o[0] === v ? ' selected' : '') + '>' + o[1] + '</option>'; }).join(''); };
     var scene = '<section class="hero grovebig"><div class="scene" data-scene="' + U.phaseNow(true) + '" data-mode="grove"></div>' +
@@ -34,7 +34,12 @@
       '<div class="fld"><label for="g-hemi">Where you are</label><select id="g-hemi" data-ui="hemi" data-key="g-hemi">' +
       opts([['auto', 'Work it out for me'], ['south', 'Southern half of the world'], ['north', 'Northern half of the world']], s.ui.hemi) + '</select></div>' +
       '<div class="fld"><label for="g-sky">Sky</label><select id="g-sky" data-ui="sky" data-key="g-sky">' +
-      opts([['auto', 'Follows the time of day'], ['dawn', 'Always dawn'], ['day', 'Always day'], ['dusk', 'Always dusk'], ['night', 'Always night']], s.ui.sky) + '</select></div></div>' +
+      opts([['auto', 'The real sky right now'], ['dawn', 'Always dawn'], ['day', 'Always day'], ['dusk', 'Always dusk'], ['night', 'Always night']], s.ui.sky) + '</select></div></div>' +
+      '<label class="sw"><span class="nm">Things drifting through the air<small>Leaves in autumn, snow in winter, specks of light in spring and summer.</small></span>' +
+      '<input type="checkbox" data-ui="falling"' + (s.ui.falling ? ' checked' : '') + ' data-key="ui-falling"></label>' +
+      '<p class="hint">Today the sun rises at ' + sk.rise + ' and sets at ' + sk.set + ', and the moon is a ' + sk.moon + ' (' + sk.lit + '% lit). The sun and moon in the picture are placed from this, ' +
+      (sk.known ? 'worked out for ' + esc(sk.zone.split('/').pop().replace(/_/g, ' ')) + ' from your time zone.' : 'estimated from your time zone.') +
+      (sk.south ? ' The view faces north, so the sun rises on the right and sets on the left.' : ' The view faces south, so the sun rises on the left and sets on the right.') + '</p>' +
       '<p class="hint">The season changes the trees, the ground, what drifts through the air, and the accent colour of the whole page.</p></section>';
     return scene + '<div class="cards flow wide">' + tray + U.plantsCard(st) + look + '</div>';
   };

@@ -98,9 +98,9 @@
     var greet = !isToday ? D.fmt(date, { weekday: 'long' }) : hr < 12 ? 'Good morning' : hr < 18 ? 'Good afternoon' : 'Good evening';
     return '<section class="hero"><div class="scene" data-scene="' + phase + '"></div><div class="herotop"><div class="hgreet"><h1>' + greet + '</h1>' +
       '<div class="datenav"><button data-act="date" data-d="-1" aria-label="Previous day">‹</button><span>' + D.fmt(date, { weekday: 'long', day: 'numeric', month: 'long' }) + '</span>' +
-      '<button data-act="date" data-d="1" aria-label="Next day"' + (isToday ? ' disabled' : '') + '>›</button>' + (isToday ? '' : '<button class="link" data-act="date" data-d="0">Back to today</button>') + '</div></div>' +
+      '<button data-act="date" data-d="1" aria-label="Next day"' + (isToday ? ' disabled' : '') + '>›</button>' + (isToday ? '' : '<button class="link" data-act="date" data-d="0">Back to today</button>') + '</div></div></div>' +
       '<a class="hlevel" href="#/journey"><div class="badge">' + p.level + '</div><div class="hl2"><div class="rank">' + rank.name + '</div>' + xpBar(p) +
-      '<div class="xpnum">' + num(p.into) + ' / ' + num(p.need) + ' XP to level ' + (p.level + 1) + (todayXP ? ' · +' + todayXP + ' today' : '') + '</div></div></a></div></section>';
+      '<div class="xpnum">' + num(p.into) + ' / ' + num(p.need) + ' XP to level ' + (p.level + 1) + (todayXP ? ' · +' + todayXP + ' today' : '') + '</div></div></a></section>';
   }
   function lastNight(date) {
     var y = D.add(date, -1), hs = S.habits().filter(function (h) { return h.late; });
@@ -570,7 +570,8 @@
       Array.prototype.forEach.call(scenes, function (sc) {
         var mode = sc.dataset.mode || 'hero', only = sc.dataset.area;
         sc.innerHTML = P.scene(Math.max(300, Math.floor(sc.clientWidth)), sc.clientHeight || 270, {
-          phase: sc.dataset.scene, season: P.seasonNow(ui.season, ui.hemi), still: !ui.fx, decor: shown, grew: view.grew,
+          sky: P.sky(sc.dataset.scene === 'auto' ? ui.sky : sc.dataset.scene, ui.hemi, mode === 'banner'), falling: ui.falling,
+          season: P.seasonNow(ui.season, ui.hemi), still: !ui.fx, decor: shown, grew: view.grew,
           items: only ? items.filter(function (i) { return i.id === only; }) : items, banner: mode === 'banner', big: mode === 'grove'
         });
       });
@@ -578,10 +579,7 @@
     }
   }
   /* the sky to show: the owner's fixed choice, or by the clock */
-  function phaseNow(live) {
-    var sky = S.state.settings.ui.sky, hr = D.hour();
-    return sky !== 'auto' ? sky : !live ? 'day' : hr < 8 ? 'dawn' : hr < 17 ? 'day' : hr < 20 ? 'dusk' : 'night';
-  }
+  function phaseNow(live) { return live ? 'auto' : 'day'; }   /* 'auto' means the owner's Sky setting: the real sky, or a fixed one */
   function render() {
     var r = route(), st = G.compute(), a = LD.areaById[r], html;
     var ae = document.activeElement, key = ae && ae.dataset ? ae.dataset.key : null;
@@ -794,6 +792,8 @@
     LD.sync.run();
   });
   window.addEventListener('online', function () { LD.sync.run(); });
+  /* the sun and moon keep moving while the page sits open */
+  setInterval(function () { if (!document.hidden && !typing()) mount(); }, 5 * 60 * 1000);
 
   /* helpers that pages-more.js and extras.js use */
   LD.ui = { icon: icon, tile: tile, chart: chart, chartCard: chartCard, tableView: tableView, legend: legend, xpBar: xpBar, txt: txt, fmtTime: fmtTime, shift: shift,

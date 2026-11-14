@@ -2,12 +2,12 @@
 
    The picture is built as stacked layers inside one box, back to front:
      1. sky SVG        sky, stars, sun or moon, two mountain ridges
-     2. clouds, birds  HTML, moved by CSS
+     2. clouds         HTML, moved by CSS
      3. forest SVG     three rows of trees with mist between, light shafts, ground, decorations
      4. plants         one link per section: its plant (swaying) and its label
      5. small life     butterflies, fireflies, the campfire's flicker
      6. frame SVG      dark trunks at the edges and leaves hanging in from the top corners
-     7. falling        leaves, petals, snow or drifting motes, by season
+     7. drifting       leaves in autumn, snow in winter, specks of light in spring and summer
    The SVG layers never animate. Everything that moves is an HTML element moved with CSS transforms,
    which the browser can do without redrawing the picture, so it stays smooth on a phone.
 
@@ -33,10 +33,10 @@
     night: { sky: ['#050f0e', '#12332d'], haze: '#1d3d36', dim: 0.56, sun: '#e9edd8', cloud: '#27463f' }
   };
   var SEASON = {
-    spring: { name: 'Spring', pine: '#4a8a52', round: '#79b75f', ground: ['#3d7c43', '#2c5f33', '#204a28'], grass: '#74bb5c', accent: '#b5d56a', accent2: '#7fb069', fall: 'petal', blossom: '#f6bdd3' },
-    summer: { name: 'Summer', pine: '#3a774a', round: '#4f9a4f', ground: ['#30693a', '#22512c', '#183d21'], grass: '#57a04f', accent: '#a7c957', accent2: '#7fb069', fall: 'mote' },
-    autumn: { name: 'Autumn', pine: '#466f47', round: '#c9772e', ground: ['#5b5d2d', '#434620', '#333618'], grass: '#8f8f3c', accent: '#e8b45a', accent2: '#c98a3a', fall: 'leaf' },
-    winter: { name: 'Winter', pine: '#487268', round: '#93a3a1', ground: ['#e1eaec', '#c3d1d6', '#a8bac0'], grass: '#a9bcbc', accent: '#a9d3e0', accent2: '#7fb3c4', fall: 'snow', snow: true }
+    spring: { name: 'Spring', pine: '#4a8a52', round: '#79b75f', ground: ['#4a8f48', '#33703a', '#24552c'], grass: '#7fc463', water: '#5fb0a6', accent: '#b5d56a', accent2: '#7fb069', fall: 'mote', blossom: '#f7d9e3' },
+    summer: { name: 'Summer', pine: '#3a774a', round: '#4f9a4f', ground: ['#3d7e41', '#2a5f33', '#1c4526'], grass: '#62ac55', water: '#4aa39a', accent: '#a7c957', accent2: '#7fb069', fall: 'mote' },
+    autumn: { name: 'Autumn', pine: '#466f47', round: '#c9772e', ground: ['#6a6a31', '#4d4f24', '#383a1a'], grass: '#9a9a40', water: '#5a9a8c', accent: '#e8b45a', accent2: '#c98a3a', fall: 'leaf' },
+    winter: { name: 'Winter', pine: '#487268', round: '#93a3a1', ground: ['#e1eaec', '#c3d1d6', '#a8bac0'], grass: '#a9bcbc', water: '#cfe3ea', accent: '#a9d3e0', accent2: '#7fb3c4', fall: 'snow', snow: true }
   };
   P.seasons = SEASON;
 
@@ -53,22 +53,95 @@
     return m <= 1 || m === 11 ? 'winter' : m <= 4 ? 'spring' : m <= 7 ? 'summer' : 'autumn';
   };
 
-  /* ---------------- things that unlock ---------------- */
-  /* at: 0..1 across the scene, snapped to the nearest gap between plants; dx nudges it within the gap.
-     layer bg stands at the back of the clearing, fg at the front, air is not a placed object. */
+  /* ---------------- where the sun and moon are ----------------
+     Worked out from the date, the clock and the time zone, with no location permission needed.
+     A time zone names a city, so its latitude and longitude stand in for the owner's. Other zones get an estimate. */
+  var rad = Math.PI / 180;
+  var ZONES = {
+    'Australia/Sydney': [-33.87, 151.21], 'Australia/Melbourne': [-37.81, 144.96], 'Australia/Brisbane': [-27.47, 153.03],
+    'Australia/Perth': [-31.95, 115.86], 'Australia/Adelaide': [-34.93, 138.6], 'Australia/Hobart': [-42.88, 147.33],
+    'Australia/Darwin': [-12.46, 130.84], 'Australia/Canberra': [-35.28, 149.13], 'Pacific/Auckland': [-36.85, 174.76],
+    'Europe/London': [51.51, -0.13], 'Europe/Dublin': [53.35, -6.26], 'Europe/Paris': [48.86, 2.35], 'Europe/Berlin': [52.52, 13.4],
+    'America/New_York': [40.71, -74.01], 'America/Chicago': [41.88, -87.63], 'America/Denver': [39.74, -104.99],
+    'America/Los_Angeles': [34.05, -118.24], 'America/Toronto': [43.65, -79.38], 'Asia/Singapore': [1.35, 103.82], 'Asia/Tokyo': [35.68, 139.69]
+  };
+  P.now = function () { return new Date(); };   /* tests can replace this to look at another time of day */
+  P.zone = function () { try { return Intl.DateTimeFormat().resolvedOptions().timeZone || ''; } catch (e) { return ''; } };
+  function place(hemi) {
+    var z = ZONES[P.zone()], lat, lon;
+    if (z) { lat = z[0]; lon = z[1]; }
+    else {
+      var y = new Date().getFullYear(), std = Math.max(new Date(y, 0, 1).getTimezoneOffset(), new Date(y, 6, 1).getTimezoneOffset());
+      lat = P.southern() ? -35 : 40; lon = -std / 4;   /* the middle of the time zone, at a typical latitude */
+    }
+    if (hemi === 'north') lat = Math.abs(lat);
+    if (hemi === 'south') lat = -Math.abs(lat);
+    return { lat: lat, lon: lon };
+  }
+  /* the sun: height above the horizon in degrees, hour angle H (0 at its highest, negative in the morning),
+     H0 (the hour angle at sunrise and sunset), and rise, noon and set as minutes on the clock */
+  P.sunAt = function (when, hemi) {
+    var pl = place(hemi), N = Math.floor((when - new Date(when.getFullYear(), 0, 0)) / 864e5);
+    var decl = -23.44 * Math.cos(2 * Math.PI / 365 * (N + 10));
+    var B = 2 * Math.PI * (N - 81) / 364, eot = 9.87 * Math.sin(2 * B) - 7.53 * Math.cos(B) - 1.5 * Math.sin(B);
+    var noon = 720 - 4 * pl.lon - when.getTimezoneOffset() - eot;
+    var mins = when.getHours() * 60 + when.getMinutes() + when.getSeconds() / 60;
+    var sl = Math.sin(pl.lat * rad) * Math.sin(decl * rad), cl = Math.cos(pl.lat * rad) * Math.cos(decl * rad);
+    var c0 = (Math.sin(-0.833 * rad) - sl) / cl, H0 = c0 <= -1 ? 180 : c0 >= 1 ? 0 : Math.acos(c0) / rad;
+    var H = (((mins - noon) / 4 + 180) % 360 + 360) % 360 - 180;
+    return { alt: Math.asin(sl + cl * Math.cos(H * rad)) / rad, H: H, H0: H0, noon: noon, rise: noon - 4 * H0, set: noon + 4 * H0, south: pl.lat < 0 };
+  };
+  /* the moon: phase p (0 new, .5 full), how much is lit, and roughly where it is. It crosses the sky p of a day behind the sun. */
+  P.moonAt = function (when, sun) {
+    var syn = 29.530588853, p = ((((when.getTime() - Date.UTC(2000, 0, 6, 18, 14)) / 864e5) % syn) + syn) % syn / syn;
+    var H = ((sun.H - p * 360 + 180) % 360 + 360) % 360 - 180;
+    return { p: p, lit: (1 - Math.cos(2 * Math.PI * p)) / 2, H: H, alt: 58 * Math.cos(H * rad) };
+  };
+  /* What the sky looks like: { phase, sun {x, alt}, moon {x, alt, p} or none, south, rise, set, p, lit }.
+     x runs 0 (left) to 1 (right). The view faces the sun's half of the sky, so east is on the left in the
+     north and on the right in the south: in Australia the sun rises on the right and sets on the left.
+     choice: 'auto' for the real sky now, or a fixed dawn, day, dusk or night. center puts things mid-sky (banners). */
+  P.sky = function (choice, hemi, center) {
+    var when = P.now(), sun = P.sunAt(when, hemi), moon = P.moonAt(when, sun), south = sun.south;
+    var side = function (fr) { return center ? 0.5 : south ? 1 - fr : fr; };
+    var out = { south: south, rise: sun.rise, set: sun.set, p: moon.p, lit: moon.lit };
+    if (PHASE[choice]) {
+      var fx = { dawn: [0.1, 4], day: [0.5, 56], dusk: [0.9, 4], night: [0.5, -40] }[choice];
+      out.phase = choice;
+      out.sun = { x: side(fx[0]), alt: fx[1] };
+      if (choice === 'night') out.moon = { x: side(0.36), alt: 52, p: Math.max(0.07, Math.min(0.93, moon.p)) };
+      return out;
+    }
+    out.phase = sun.alt > 9 ? 'day' : sun.alt < -7 ? 'night' : sun.H < 0 ? 'dawn' : 'dusk';
+    out.sun = { x: side(sun.H0 > 0 ? Math.max(-0.06, Math.min(1.06, (sun.H + sun.H0) / (2 * sun.H0))) : 0.5), alt: sun.alt };
+    if (moon.alt > 4 && moon.lit > 0.04) out.moon = { x: side((moon.H + 90) / 180), alt: moon.alt, p: moon.p };
+    return out;
+  };
+  /* today's sunrise, sunset and moon in words, for the Grove page */
+  P.skyText = function (hemi) {
+    var s = P.sky('auto', hemi), p = s.p;
+    var t = function (m) { m = ((Math.round(m) % 1440) + 1440) % 1440; var hh = Math.floor(m / 60), mm = m % 60; return (((hh + 11) % 12) + 1) + ':' + (mm < 10 ? '0' : '') + mm + (hh < 12 ? ' am' : ' pm'); };
+    var name = p < 0.03 || p > 0.97 ? 'new moon' : p < 0.22 ? 'waxing crescent' : p < 0.28 ? 'first quarter' : p < 0.47 ? 'waxing gibbous' : p < 0.53 ? 'full moon' : p < 0.72 ? 'waning gibbous' : p < 0.78 ? 'last quarter' : 'waning crescent';
+    return { rise: t(s.rise), set: t(s.set), moon: name, lit: Math.round(s.lit * 100), zone: P.zone(), known: !!ZONES[P.zone()], south: s.south };
+  };
+
+  /* ---------------- things that unlock ----------------
+     at: 0..1 across the scene, snapped to the nearest gap between plants; dx nudges it within the gap.
+     layer: edge stands at the forest edge across the creek, back at the back of the clearing, front near the viewer,
+     air is not a placed object. On wide screens the owl perches on a branch instead of its stump. */
   P.decor = [
-    { id: 'stones',      name: 'Stepping stones', level: 2,  at: 0.5,  layer: 'fg', dy: 9 },
-    { id: 'lantern',     name: 'Lantern',         level: 3,  at: 0,    layer: 'fg', dx: -0.2 },
+    { id: 'stones',      name: 'Stepping stones', level: 2,  at: 0.5,  layer: 'front', dy: 8 },
+    { id: 'lantern',     name: 'Lantern',         level: 3,  at: 0,    layer: 'front', dx: -0.2, dy: 3 },
     { id: 'butterflies', name: 'Butterflies',     level: 4,  layer: 'air' },
-    { id: 'bench',       name: 'Bench',           level: 5,  at: 0.5,  layer: 'fg' },
-    { id: 'pond',        name: 'Lily pond',       level: 6,  at: 0.25, layer: 'fg', dy: 4 },
-    { id: 'beehive',     name: 'Beehive',         level: 7,  at: 1,    layer: 'fg', dx: 0.1 },
-    { id: 'planter',     name: 'Garden bed',      level: 8,  at: 0.75, layer: 'fg' },
-    { id: 'campfire',    name: 'Campfire',        level: 9,  at: 0.25, layer: 'bg' },
-    { id: 'arch',        name: 'Stone arch',      level: 10, at: 1,    layer: 'bg', dx: -0.12 },
-    { id: 'owl',         name: 'Owl',             level: 12, at: 0,    layer: 'fg', dx: 0.22 },
-    { id: 'treehouse',   name: 'Treehouse',       level: 14, at: 0.5,  layer: 'bg' },
-    { id: 'deer',        name: 'Deer',            level: 16, at: 0.75, layer: 'bg' }
+    { id: 'bench',       name: 'Bench',           level: 5,  at: 0.5,  layer: 'back' },
+    { id: 'pond',        name: 'Lily pond',       level: 6,  at: 0.25, layer: 'front', dy: 7 },
+    { id: 'beehive',     name: 'Beehive',         level: 7,  at: 1,    layer: 'back', dx: 0.1 },
+    { id: 'planter',     name: 'Garden bed',      level: 8,  at: 0.75, layer: 'back' },
+    { id: 'campfire',    name: 'Campfire',        level: 9,  at: 0.25, layer: 'back' },
+    { id: 'arch',        name: 'Stone arch',      level: 10, at: 1,    layer: 'edge', dx: -0.12 },
+    { id: 'owl',         name: 'Owl',             level: 12, at: 0,    layer: 'front', dx: 0.22 },
+    { id: 'treehouse',   name: 'Treehouse',       level: 14, at: 0.5,  layer: 'edge' },
+    { id: 'deer',        name: 'Deer',            level: 16, at: 0.75, layer: 'edge' }
   ];
 
   /* each returns [markup, glows] where glows are [x, y, radius] lights shown at dusk and night */
@@ -138,13 +211,13 @@
         leaf(-23, -32, 5, 2, 150, '#5aa855') + leaf(-21, -24, 5, 2, 30, '#4f9a4f') + leaf(21, -36, 5, 2, 20, '#5aa855') + leaf(19, -28, 5, 2, 160, '#4f9a4f');
       return [out, []];
     },
-    owl: function (c) {
+    owl: function (c, S, onBranch) {
       var eye = c.lit ? '#ffe27a' : '#f6ecd4';
-      return ['<rect x="-5.5" y="-11" width="11" height="11" fill="#5a4230"/><ellipse cx="0" cy="-11" rx="5.5" ry="1.8" fill="#8a6a4c"/><ellipse cx="-3" cy="-1" rx="5" ry="1.6" fill="#5d8a3c"/>' +
+      return [(onBranch ? '<g transform="translate(0 11.5)">' : '<g><rect x="-5.5" y="-11" width="11" height="11" fill="#5a4230"/><ellipse cx="0" cy="-11" rx="5.5" ry="1.8" fill="#8a6a4c"/><ellipse cx="-3" cy="-1" rx="5" ry="1.6" fill="#5d8a3c"/>') +
         '<ellipse cx="0" cy="-21" rx="7.4" ry="9.4" fill="#8a6a4c"/><ellipse cx="0" cy="-18.6" rx="4.6" ry="6" fill="#c9ad85"/>' +
         '<path d="M-6.6 -27l1.6 -5 3 3.6zM6.6 -27l-1.6 -5 -3 3.6z" fill="#7a5c44"/>' +
         '<circle cx="-2.9" cy="-24.2" r="2.7" fill="' + eye + '"/><circle cx="2.9" cy="-24.2" r="2.7" fill="' + eye + '"/><circle cx="-2.9" cy="-24.2" r="1.2" fill="#22180e"/><circle cx="2.9" cy="-24.2" r="1.2" fill="#22180e"/>' +
-        '<path d="M-1.2 -22.4L0 -20.2L1.2 -22.4Z" fill="#e2a03f"/><path d="M-2.4 -16.6q1.2 1 2.4 0q1.2 1 2.4 0" stroke="#8a6a4c" stroke-width=".7" fill="none"/>', []];
+        '<path d="M-1.2 -22.4L0 -20.2L1.2 -22.4Z" fill="#e2a03f"/><path d="M-2.4 -16.6q1.2 1 2.4 0q1.2 1 2.4 0" stroke="#8a6a4c" stroke-width=".7" fill="none"/></g>', []];
     },
     treehouse: function (c, S) {
       var out = '';
@@ -186,18 +259,19 @@
     for (i = 1; i <= n; i++) d += 'Q' + f(pts[i - 1][0]) + ' ' + f(pts[i - 1][1]) + ' ' + f((pts[i - 1][0] + pts[i][0]) / 2) + ' ' + f((pts[i - 1][1] + pts[i][1]) / 2);
     return '<path d="' + d + 'L' + w + ' ' + f(pts[n][1]) + 'V' + (base + 400) + 'Z" fill="' + col + '"/>';
   }
-  /* one row of forest. detail 0 = far and plain, 1 = middle, 2 = near: layered boughs with a lit side and round crowns with highlights.
+  /* one row of forest. detail 0 = far and plain, 1 = middle, 2 = near: layered boughs and round crowns.
+     lightX is where the sun or moon is, so each tree is lit on the side that faces it (null = no light).
      c: { pine, pineLit, round, roundLit, trunk, hill, snow } */
-  function forest(w, base, hmin, hmax, step, r, c, S, detail) {
+  function forest(w, base, hmin, hmax, step, r, c, S, detail, lightX) {
     var dark = '', lit = '', trunks = '', crowns = '', hi = '', extra = '';
     for (var x = -step; x < w + step; x += step * (0.62 + r() * 0.7)) {
-      var hh = hmin + r() * (hmax - hmin);
+      var hh = hmin + r() * (hmax - hmin), sg = lightX == null ? 0 : lightX < x ? -1 : 1;
       if (detail && r() < 0.27) {
         var cr = hh * 0.3, cy = base - hh * 0.6, tw = Math.max(1.2, hh * 0.035);
         trunks += 'M' + f(x - tw) + ' ' + base + 'V' + f(cy) + 'H' + f(x + tw) + 'V' + base + 'Z';
         [[0, 0, 1], [-0.72, 0.38, 0.7], [0.72, 0.34, 0.72], [0.05, -0.55, 0.62]].forEach(function (k) { crowns += '<circle cx="' + f(x + k[0] * cr) + '" cy="' + f(cy + k[1] * cr) + '" r="' + f(k[2] * cr) + '"/>'; });
-        if (detail > 1) [[-0.32, -0.38, 0.5], [0.36, -0.12, 0.32], [-0.62, 0.22, 0.3]].forEach(function (k) { hi += '<circle cx="' + f(x + k[0] * cr) + '" cy="' + f(cy + k[1] * cr) + '" r="' + f(k[2] * cr) + '"/>'; });
-        if (S.blossom && detail > 1) for (var b = 0; b < 6; b++) extra += '<circle cx="' + f(x + (r() - 0.5) * cr * 2.2) + '" cy="' + f(cy + (r() - 0.6) * cr * 1.3) + '" r="' + f(1.2 + r()) + '" fill="' + S.blossom + '" opacity=".85"/>';
+        if (detail > 1 && sg) [[0.32, -0.38, 0.5], [-0.36, -0.12, 0.32], [0.62, 0.22, 0.3]].forEach(function (k) { hi += '<circle cx="' + f(x + sg * k[0] * cr) + '" cy="' + f(cy + k[1] * cr) + '" r="' + f(k[2] * cr) + '"/>'; });
+        if (S.blossom && detail > 1) for (var b = 0; b < 6; b++) extra += '<circle cx="' + f(x + (r() - 0.5) * cr * 2.2) + '" cy="' + f(cy + (r() - 0.6) * cr * 1.3) + '" r="' + f(1.1 + r() * 0.9) + '" fill="' + S.blossom + '" opacity=".8"/>';
         if (S.snow) extra += '<path d="M' + f(x - cr * 0.8) + ' ' + f(cy - cr * 0.6) + 'Q' + f(x) + ' ' + f(cy - cr * 1.75) + ' ' + f(x + cr * 0.8) + ' ' + f(cy - cr * 0.6) + 'Q' + f(x) + ' ' + f(cy - cr * 1.0) + ' ' + f(x - cr * 0.8) + ' ' + f(cy - cr * 0.6) + 'Z" fill="' + c.snow + '" opacity=".88"/>';
       } else {
         var tiers = detail === 0 ? 1 : detail === 1 ? 3 : 4, ww = hh * (0.38 + r() * 0.12), seg = hh * 0.86 / tiers;
@@ -205,13 +279,32 @@
         for (var t = 0; t < tiers; t++) {
           var yb = base - (tiers > 1 ? hh * 0.1 + t * seg * 0.8 : 0), yt = t === tiers - 1 ? base - hh : yb - seg * 1.55, tw2 = ww * (1 - t / (tiers + 0.35)), ym = yb - (yb - yt) * 0.42;
           dark += 'M' + f(x - tw2 / 2) + ' ' + f(yb) + 'Q' + f(x - tw2 * 0.14) + ' ' + f(ym) + ' ' + f(x) + ' ' + f(yt) + 'Q' + f(x + tw2 * 0.14) + ' ' + f(ym) + ' ' + f(x + tw2 / 2) + ' ' + f(yb) + 'Q' + f(x) + ' ' + f(yb + (yb - yt) * 0.1) + ' ' + f(x - tw2 / 2) + ' ' + f(yb) + 'Z';
-          if (detail > 1) lit += 'M' + f(x - tw2 / 2) + ' ' + f(yb) + 'Q' + f(x - tw2 * 0.14) + ' ' + f(ym) + ' ' + f(x) + ' ' + f(yt) + 'L' + f(x - tw2 * 0.07) + ' ' + f(yb + (yb - yt) * 0.05) + 'Z';
+          if (detail > 1 && sg) lit += 'M' + f(x + sg * tw2 / 2) + ' ' + f(yb) + 'Q' + f(x + sg * tw2 * 0.14) + ' ' + f(ym) + ' ' + f(x) + ' ' + f(yt) + 'L' + f(x + sg * tw2 * 0.07) + ' ' + f(yb + (yb - yt) * 0.05) + 'Z';
         }
         if (S.snow) extra += '<path d="M' + f(x - ww * 0.17) + ' ' + f(base - hh * 0.7) + 'Q' + f(x - ww * 0.04) + ' ' + f(base - hh * 0.86) + ' ' + f(x) + ' ' + f(base - hh) + 'Q' + f(x + ww * 0.04) + ' ' + f(base - hh * 0.86) + ' ' + f(x + ww * 0.17) + ' ' + f(base - hh * 0.7) + 'Q' + f(x) + ' ' + f(base - hh * 0.62) + ' ' + f(x - ww * 0.17) + ' ' + f(base - hh * 0.7) + 'Z" fill="' + c.snow + '" opacity=".88"/>';
       }
     }
     return '<rect x="0" y="' + (base - 1) + '" width="' + w + '" height="700" fill="' + c.hill + '"/><path d="' + trunks + '" fill="' + c.trunk + '"/><path d="' + dark + '" fill="' + c.pine + '"/>' +
       (lit ? '<path d="' + lit + '" fill="' + c.pineLit + '" opacity=".55"/>' : '') + '<g fill="' + c.round + '">' + crowns + '</g>' + (hi ? '<g fill="' + c.roundLit + '" opacity=".6">' + hi + '</g>' : '') + extra;
+  }
+  /* a cumulus cloud: a row of puffs, larger in the middle, sitting on a flat base and shaded from top to bottom */
+  function cloudSVG(r, s, top, bottom, id) {
+    var W = 140, H = 54, base = 44, n = 6 + Math.floor(r() * 4), puffs = '', hi = '';
+    for (var i = 0; i < n; i++) {
+      var t = i / (n - 1), px = 22 + 96 * t + (r() - 0.5) * 8, pr = (8 + 14 * Math.sin(Math.PI * (0.1 + 0.8 * t))) * (0.8 + r() * 0.4);
+      puffs += '<circle cx="' + f(px) + '" cy="' + f(base - pr * 0.7) + '" r="' + f(pr) + '"/>';
+      if (r() < 0.65) hi += '<circle cx="' + f(px - pr * 0.22) + '" cy="' + f(base - pr * 1.02) + '" r="' + f(pr * 0.52) + '"/>';
+    }
+    return '<svg width="' + f(W * s) + '" height="' + f(H * s) + '" viewBox="0 0 ' + W + ' ' + H + '" aria-hidden="true"><defs>' +
+      '<linearGradient id="cg-' + id + '" gradientUnits="userSpaceOnUse" x1="0" y1="6" x2="0" y2="' + base + '"><stop offset="0" stop-color="' + top + '"/><stop offset="1" stop-color="' + bottom + '"/></linearGradient>' +
+      '<clipPath id="cc"><rect x="0" y="0" width="' + W + '" height="' + base + '"/></clipPath></defs>' +
+      '<g clip-path="url(#cc)"><g fill="url(#cg-' + id + ')"><ellipse cx="70" cy="' + (base - 3) + '" rx="56" ry="10"/>' + puffs + '</g><g fill="' + top + '" opacity=".5">' + hi + '</g></g></svg>';
+  }
+  /* the moon at phase p (0 new, .5 full). Its lit edge faces west while it grows, which is the left side when you face north. */
+  function moonShape(cx, cy, r, p, south, bright, dark) {
+    var lit = (1 - Math.cos(2 * Math.PI * p)) / 2, rx = r * Math.abs(Math.cos(2 * Math.PI * p)), onRight = p < 0.5 ? !south : south;
+    return '<g transform="translate(' + f(cx) + ' ' + f(cy) + ')' + (onRight ? '' : ' scale(-1 1)') + '">' + (dark ? '<circle r="' + r + '" fill="' + dark + '"/>' : '') +
+      '<path d="M0 ' + (-r) + 'A' + r + ' ' + r + ' 0 0 1 0 ' + r + 'A' + f(rx) + ' ' + r + ' 0 0 ' + (lit < 0.5 ? 0 : 1) + ' 0 ' + (-r) + 'Z" fill="' + bright + '"/></g>';
   }
   /* leaves hanging in from a top corner, on a sagging branch, with a couple of trailing vines */
   function canopy(w, r, side, cols, span, depth) {
@@ -243,156 +336,199 @@
   }
 
   /* ---------------- the scene ----------------
-     o: phase, season, items [{id,name,plant,stage,level}], decor {id:true}, still, grew (section id that just grew),
-        banner (one large plant on the right, no labels or links), big (taller Grove page version)
+     o: sky (from P.sky), season, items [{id,name,plant,stage,level}], decor {id:true}, still (no motion),
+        falling (false hides the drifting leaves, snow and specks), grew (section id that just grew),
+        banner (one large plant on the right, no labels or links), big (the taller Grove page version)
      Returns HTML for a box of the given size. */
   P.scene = function (w, h, o) {
     o = Object.create(o);
     o.big = o.big && w >= 560;   /* on a phone the Grove page uses the normal proportions, just taller */
-    var narrow = w < 560;
-    var ph = PHASE[o.phase] || PHASE.day, S = SEASON[o.season] || SEASON.summer, lit = o.phase === 'night' || o.phase === 'dusk';
-    var gy = h - (o.banner ? 16 : 44), r = rng(42), i, x, dim = ph.dim, glow = '', html = '';
+    var narrow = w < 560, sky = o.sky, phase = sky.phase, ph = PHASE[phase], S = SEASON[o.season] || SEASON.summer, lit = phase === 'night' || phase === 'dusk';
+    var gy = h - (o.banner ? 16 : 44), r = rng(42), i, x, dim = ph.dim, glow = '', html = '', now = Date.now() / 1000;
     var shade = function (c) { return mix(c, '#06100c', 1 - dim); };
     var svgOpen = function (cls) { return '<svg class="lay ' + cls + '" viewBox="0 0 ' + w + ' ' + h + '" width="' + w + '" height="' + h + '" aria-hidden="true">'; };
+    /* animation offsets come from the clock, so redrawing the picture never makes anything jump back to its start */
+    var at = function (dur, offset) { return '-' + f((now + offset) % dur) + 's'; };
 
-    /* 1. sky */
-    var cel = { dawn: [w * 0.22, gy - 96], day: [w * 0.52, h * 0.2], dusk: [w * 0.6, gy - 92], night: [w * 0.5, h * 0.24] }[o.phase];
-    if (w < 560 || o.banner) cel = [w * (o.banner ? 0.5 : 0.8), gy - (o.banner ? 74 : 112)];
-    var a = svgOpen('s-sky') + '<defs><linearGradient id="sky-' + o.phase + '" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="' + ph.sky[0] + '"/><stop offset=".72" stop-color="' + mix(ph.sky[0], ph.sky[1], 0.82) + '"/><stop offset="1" stop-color="' + ph.sky[1] + '"/></linearGradient>' +
-      '<radialGradient id="glow"><stop offset="0" stop-color="' + ph.sun + '" stop-opacity=".75"/><stop offset="1" stop-color="' + ph.sun + '" stop-opacity="0"/></radialGradient></defs>' +
-      '<rect width="' + w + '" height="' + h + '" fill="url(#sky-' + o.phase + ')"/>';
-    if (o.phase === 'night') {
-      for (i = 0; i < Math.round(w / 16); i++) a += '<circle cx="' + f(r() * w) + '" cy="' + f(r() * h * 0.5) + '" r="' + f(0.5 + r() * 0.8) + '" fill="#e9edd8" opacity="' + f(0.3 + r() * 0.6) + '"/>';
-      a += '<circle cx="' + f(cel[0]) + '" cy="' + f(cel[1]) + '" r="52" fill="url(#glow)" opacity=".45"/><circle cx="' + f(cel[0]) + '" cy="' + f(cel[1]) + '" r="13" fill="#e9edd8"/>' +
-           '<circle cx="' + f(cel[0] + 6) + '" cy="' + f(cel[1] - 4) + '" r="11.5" fill="' + mix(ph.sky[0], ph.sky[1], 0.25) + '"/>';
-    } else {
-      a += '<circle cx="' + f(cel[0]) + '" cy="' + f(cel[1]) + '" r="' + (o.banner ? 70 : 96) + '" fill="url(#glow)"/><circle cx="' + f(cel[0]) + '" cy="' + f(cel[1]) + '" r="13" fill="' + ph.sun + '"/>';
+    /* the lines everything hangs from: far, middle and near forest, the horizon, and the top of the usable sky */
+    var fb = gy - (o.big ? 122 : o.banner ? 58 : 74), mb = gy - (o.big ? 72 : o.banner ? 38 : 44), nb = gy - (o.big ? 28 : 20), hz = fb - 2, top = o.banner ? 14 : narrow ? 64 : 30;
+    var up = function (alt) { return hz - Math.max(-8, alt) / 90 * (hz - top); };
+    var sunUp = sky.sun.alt > -1, sx = w * (0.07 + 0.86 * sky.sun.x), sy = up(sky.sun.alt);
+    var mx = sky.moon ? w * (0.07 + 0.86 * sky.moon.x) : 0, my = sky.moon ? up(sky.moon.alt) : 0;
+    var lightX = sunUp ? sx : phase === 'night' && sky.moon ? mx : null;
+    var sunCol = sky.sun.alt < 14 ? mix('#ffab62', ph.sun, Math.max(0, sky.sun.alt) / 14) : ph.sun;
+
+    /* 1. sky: the sun sits where it really is, low and orange near the horizon, and the moon shows its real phase */
+    var a = svgOpen('s-sky') + '<defs><linearGradient id="sky-' + phase + '" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="' + ph.sky[0] + '"/><stop offset=".72" stop-color="' + mix(ph.sky[0], ph.sky[1], 0.82) + '"/><stop offset="1" stop-color="' + ph.sky[1] + '"/></linearGradient>' +
+      '<radialGradient id="glow"><stop offset="0" stop-color="' + sunCol + '" stop-opacity=".8"/><stop offset="1" stop-color="' + sunCol + '" stop-opacity="0"/></radialGradient>' +
+      '<radialGradient id="mglow"><stop offset="0" stop-color="#e9edd8" stop-opacity=".6"/><stop offset="1" stop-color="#e9edd8" stop-opacity="0"/></radialGradient></defs>' +
+      '<rect width="' + w + '" height="' + h + '" fill="url(#sky-' + phase + ')"/>';
+    if (phase === 'night') for (i = 0; i < Math.round(w / 14); i++) a += '<circle cx="' + f(r() * w) + '" cy="' + f(r() * hz * 0.9) + '" r="' + f(0.5 + r() * 0.8) + '" fill="#e9edd8" opacity="' + f(0.3 + r() * 0.6) + '"/>';
+    if (sky.sun.alt > -9 && sky.sun.alt < 14) a += '<ellipse cx="' + f(sx) + '" cy="' + f(hz + 4) + '" rx="' + f(w * 0.3) + '" ry="' + f((hz - top) * 0.55) + '" fill="url(#glow)" opacity=".6"/>';
+    if (sunUp) a += '<circle cx="' + f(sx) + '" cy="' + f(sy) + '" r="' + (o.banner ? 72 : 104) + '" fill="url(#glow)"/><circle cx="' + f(sx) + '" cy="' + f(sy) + '" r="13" fill="' + sunCol + '"/>';
+    if (sky.moon) {
+      var night = phase === 'night', mlit = (1 - Math.cos(2 * Math.PI * sky.moon.p)) / 2;
+      a += (night ? '<circle cx="' + f(mx) + '" cy="' + f(my) + '" r="54" fill="url(#mglow)" opacity="' + f(0.25 + 0.5 * mlit) + '"/>' : '') +
+        '<g opacity="' + (phase === 'day' ? 0.5 : night ? 1 : 0.8) + '">' + moonShape(mx, my, 12, sky.moon.p, sky.south, '#eef0df', night ? mix(ph.sky[0], '#ffffff', 0.12) : null) + '</g>';
     }
-    var fb = gy - (o.big ? 118 : o.banner ? 50 : 70), mb = gy - (o.big ? 66 : o.banner ? 28 : 40), nb = gy - (o.big ? 20 : 12);
     a += ridge(w, fb + 6, o.big ? 120 : 64, rng(5), mix(mix(S.pine, ph.haze, 0.82), ph.sky[1], 0.35), 6) +
          ridge(w, fb + 10, o.big ? 74 : 40, rng(9), mix(mix(S.pine, ph.haze, 0.7), ph.sky[1], 0.18), 9);
     html += a + '</svg>';
 
-    /* 2. clouds and birds drift across the sky */
-    var nc = o.banner ? 2 : Math.max(2, Math.round(w / 320));
+    /* 2. clouds: big ones high up, small ones far off near the horizon, lit from above by day and from below at dusk */
+    var cl = { day: ['#ffffff', mix('#ffffff', ph.sky[0], 0.34)], dawn: ['#fff5e4', mix('#e9b99c', ph.sky[0], 0.25)], dusk: [mix('#77688a', ph.sky[0], 0.3), '#f4a86c'], night: ['#34524c', '#182d29'] }[phase];
+    var nc = o.banner ? 2 : Math.max(3, Math.round(w / 240));
     for (i = 0; i < nc; i++) {
-      var cs = 0.7 + r() * 0.8, dur = 120 + i * 41, cx0 = r();
-      html += '<div class="scloud" style="top:' + f(14 + r() * (fb * 0.4)) + 'px;--w:' + w + 'px;animation-duration:' + dur + 's;animation-delay:-' + f(cx0 * dur) + 's">' +
-        '<svg width="' + f(84 * cs) + '" height="' + f(30 * cs) + '" viewBox="-42 -20 84 30" aria-hidden="true"><g fill="' + ph.cloud + '" opacity=".55"><ellipse cx="0" cy="0" rx="40" ry="8"/><ellipse cx="-14" cy="-6" rx="17" ry="9"/><ellipse cx="10" cy="-8" rx="21" ry="11"/></g></svg></div>';
-    }
-    if (!o.banner && o.phase !== 'night' && !o.still) {
-      html += '<div class="sbird" style="top:' + f(40 + r() * 30) + 'px;--w:' + w + 'px"><svg width="46" height="26" viewBox="-24 -8 48 26" aria-hidden="true"><path d="M-7 0q3.5 -4.5 7 0q3.5 -4.5 7 0M9 9q2.6 -3.4 5.2 0q2.6 -3.4 5.2 0M-22 12q2.4 -3 4.8 0q2.4 -3 4.8 0" stroke="' + mix(ph.sky[0], '#0b1512', 0.7) + '" stroke-width="1.3" fill="none" stroke-linecap="round"/></svg></div>';
+      var far = i % 3 === 2, cs = far ? 0.36 + r() * 0.22 : 0.7 + r() * 0.75, dur = (far ? 520 : 300) / (0.5 + cs * 0.5);
+      var cyy = far ? hz - 30 - r() * 22 : top * 0.3 + r() * (hz - top) * 0.4;
+      html += '<div class="scloud' + (o.still ? ' still' : '') + '" style="top:' + f(cyy) + 'px;--w:' + w + 'px;--x:' + f(r() * w * 0.8) + 'px;opacity:' + (far ? 0.72 : phase === 'night' ? 0.7 : 0.94) +
+        ';animation-duration:' + f(dur) + 's;animation-delay:' + at(dur, r() * dur) + '">' + cloudSVG(rng(100 + i), cs, cl[0], cl[1], phase) + '</div>';
     }
 
-    /* 3. forest, light, ground, decorations */
+    /* 3. forest, light, creek, clearing, decorations */
     var snow = shade('#f2f7f8');
     var layer = function (hazeT, darkT) {
-      var p = mix(mix(S.pine, ph.haze, hazeT), '#07130e', darkT), rd = mix(mix(S.round, ph.haze, hazeT), '#07130e', darkT * 0.6);
-      return { pine: p, pineLit: mix(p, ph.sun, 0.3), round: rd, roundLit: mix(rd, ph.sun, 0.34), trunk: mix(p, '#1c120a', 0.45),
+      /* nearer rows are less hazy and darker; the whole forest dims as the light goes */
+      var p = shade(mix(mix(S.pine, ph.haze, hazeT), '#07130e', darkT)), rd = shade(mix(mix(S.round, ph.haze, hazeT), '#07130e', darkT * 0.6));
+      return { pine: p, pineLit: mix(p, ph.sun, 0.32 * dim), round: rd, roundLit: mix(rd, ph.sun, 0.36 * dim), trunk: mix(p, '#1c120a', 0.45),
                hill: mix(p, S.snow ? shade('#c6d5da') : p, 0.5), snow: mix(snow, ph.haze, hazeT * 0.5) };
     };
+    var g1 = shade(S.ground[0]), g2 = shade(S.ground[1]), g3 = shade(S.ground[2]), near = layer(0.1, 0.3), cTop = nb + 6, water = shade(mix(S.water, ph.sky[1], 0.4));
     var b = svgOpen('s-forest') + '<defs>' + P.defs +
       '<radialGradient id="lamp"><stop offset="0" stop-color="#ffdf8a" stop-opacity=".8"/><stop offset="1" stop-color="#ffdf8a" stop-opacity="0"/></radialGradient>' +
       '<linearGradient id="mist" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="' + ph.haze + '" stop-opacity="0"/><stop offset="1" stop-color="' + mix(ph.haze, '#ffffff', 0.35) + '" stop-opacity=".5"/></linearGradient>' +
-      '<linearGradient id="ray" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="' + ph.sun + '" stop-opacity=".24"/><stop offset="1" stop-color="' + ph.sun + '" stop-opacity="0"/></linearGradient></defs>';
-    b += forest(w, fb, o.big ? 24 : 16, o.big ? 52 : 34, o.big ? 15 : 11, rng(11), layer(0.66, 0), S, 0) +
+      '<linearGradient id="ray" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="' + sunCol + '" stop-opacity=".26"/><stop offset="1" stop-color="' + sunCol + '" stop-opacity="0"/></linearGradient>' +
+      '<linearGradient id="crk" gradientUnits="userSpaceOnUse" x1="0" y1="' + cTop + '" x2="0" y2="' + gy + '"><stop offset="0" stop-color="' + mix(water, near.pine, 0.55) + '"/><stop offset="1" stop-color="' + mix(water, '#ffffff', 0.12) + '"/></linearGradient>' +
+      '<radialGradient id="clr" gradientUnits="userSpaceOnUse" cx="' + f(lightX == null ? w / 2 : lightX) + '" cy="' + gy + '" r="' + f(w * 0.5) + '"><stop offset="0" stop-color="' + mix(g1, ph.sun, lit ? 0.12 : 0.3) + '"/><stop offset="1" stop-color="' + g1 + '"/></radialGradient></defs>';
+    b += forest(w, fb, o.big ? 24 : 16, o.big ? 52 : 34, o.big ? 15 : 11, rng(11), layer(0.66, 0), S, 0, lightX) +
          '<rect x="0" y="' + (fb - 30) + '" width="' + w + '" height="' + (mb - fb + 34) + '" fill="url(#mist)"/>' +
-         forest(w, mb, o.big ? 44 : 28, o.big ? 86 : 56, o.big ? 26 : 19, rng(21), layer(0.36, 0.08), S, 1);
-    if (o.phase !== 'night') {
-      [[-0.24, 0.035], [-0.07, 0.02], [0.1, 0.03], [0.29, 0.04]].forEach(function (ry) {
-        var bx = cel[0] + ry[0] * w;
-        b += '<path d="M' + f(cel[0] - 4) + ' ' + f(cel[1]) + 'L' + f(bx - w * ry[1]) + ' ' + (gy + 8) + 'H' + f(bx + w * ry[1]) + 'L' + f(cel[0] + 4) + ' ' + f(cel[1]) + 'Z" fill="url(#ray)"/>';
+         forest(w, mb, o.big ? 44 : 28, o.big ? 86 : 56, o.big ? 26 : 19, rng(21), layer(0.36, 0.08), S, 1, lightX);
+    if (sunUp && sky.sun.alt > 2) {   /* shafts of light fan out from the sun to the ground */
+      [[-0.26, 0.035], [-0.09, 0.02], [0.08, 0.03], [0.27, 0.04]].forEach(function (ry) {
+        var bx = sx + ry[0] * w;
+        b += '<path d="M' + f(sx - 4) + ' ' + f(sy) + 'L' + f(bx - w * ry[1]) + ' ' + (gy + 8) + 'H' + f(bx + w * ry[1]) + 'L' + f(sx + 4) + ' ' + f(sy) + 'Z" fill="url(#ray)"/>';
       });
     }
     b += '<rect x="0" y="' + (mb - 28) + '" width="' + w + '" height="' + (nb - mb + 30) + '" fill="url(#mist)" opacity=".8"/>' +
-         forest(w, nb, o.big ? 70 : 44, o.big ? 150 : 92, o.big ? 46 : 34, rng(31), layer(0.1, 0.3), S, 2);
-    /* undergrowth along the foot of the near trees */
-    var under = '', underHi = '', lc = layer(0.04, 0.34);
-    for (x = -6; x < w + 10; x += 10 + r() * 16) { var br = 7 + r() * 9; under += '<circle cx="' + f(x) + '" cy="' + f(nb + 2) + '" r="' + f(br) + '"/>'; if (r() < 0.5) underHi += '<circle cx="' + f(x - br * 0.25) + '" cy="' + f(nb - br * 0.35) + '" r="' + f(br * 0.45) + '"/>'; }
-    b += '<g fill="' + lc.round + '">' + under + '</g><g fill="' + lc.roundLit + '" opacity=".45">' + underHi + '</g>';
+         forest(w, nb, o.big ? 70 : 44, o.big ? 150 : 92, o.big ? 46 : 34, rng(31), near, S, 2, lightX);
 
-    /* where things stand */
+    /* where things stand: one slot per plant, gaps between them for everything else */
     var items = o.items || [], n = items.length || 1, k = Math.max(0.6, Math.min(1.15, w / (n * 150)));
     if (o.big) k = Math.min(k * 1.45, (w / (n + 1)) / 96);
     if (o.banner) k = Math.min(1.2, (h - 30) / 132);
     var slots = items.map(function (_, idx) { return o.banner ? w * 0.84 : w * (idx + 1) / (n + 1); });
-    var gap = w / (n + 1), show = o.banner ? {} : (o.decor || {}), dctx = { lit: lit, sky: ph.sky[1] }, flame = null;
+    var gap = w / (n + 1), show = o.banner ? {} : (o.decor || {}), dctx = { lit: lit, sky: ph.sky[1] }, flame = null, taken = [], perch = !narrow && !o.banner;
+    var live = 'filter:brightness(' + f(0.5 + dim * 0.5) + ') saturate(' + f(0.6 + dim * 0.4) + ')';
     var place = function (d, baseY, scale) {
       var px = (Math.round(d.at * n) + 0.5 + (d.dx || 0)) * gap, res = DECOR[d.id](dctx, S);
+      taken.push(px);
       res[1].forEach(function (gl) { if (lit) glow += '<circle cx="' + f(px + gl[0] * scale) + '" cy="' + f(baseY + gl[1] * scale) + '" r="' + f(gl[2] * scale) + '" fill="url(#lamp)"/>'; });
       if (d.id === 'campfire') flame = [px, baseY - 12 * scale, 34 * scale];
       return '<g transform="translate(' + f(px) + ' ' + f(baseY) + ') scale(' + f(scale) + ')">' + res[0] + '</g>';
     };
-    var live = 'filter:brightness(' + f(0.5 + dim * 0.5) + ') saturate(' + f(0.6 + dim * 0.4) + ')';
+    var layerOf = function (name, baseY, scale) {
+      var out = '';
+      P.decor.forEach(function (d) { if (d.layer === name && show[d.id] && !(d.id === 'owl' && perch)) out += place(d, baseY + (d.dy || 0) * k, scale); });
+      return out ? '<g style="' + live + '">' + out + '</g>' : '';
+    };
+    var edge = layerOf('edge', cTop - 1, k), back = layerOf('back', gy - 2, k * 0.96), front = layerOf('front', gy + 3, k * 1.04);
 
-    /* ground: three rolling bands, pools of light, grass, flowers */
-    var g1 = shade(S.ground[0]), g2 = shade(S.ground[1]), g3 = shade(S.ground[2]);
-    b += '<path d="M0 ' + (gy - 4) + 'Q' + f(w * 0.2) + ' ' + (gy - 13) + ' ' + f(w * 0.45) + ' ' + (gy - 5) + 'T' + w + ' ' + (gy - 8) + 'V' + h + 'H0Z" fill="' + g1 + '"/>' +
-         '<path d="M0 ' + (gy + 6) + 'Q' + f(w * 0.3) + ' ' + gy + ' ' + f(w * 0.6) + ' ' + (gy + 6) + 'T' + w + ' ' + (gy + 3) + 'V' + h + 'H0Z" fill="' + g2 + '"/>' +
+    /* the forest edge: things standing among the trees, then a line of undergrowth along the far bank */
+    b += edge;
+    var under = '', underHi = '';
+    for (x = -6; x < w + 10; x += 10 + r() * 16) { var br = 7 + r() * 9; under += '<circle cx="' + f(x) + '" cy="' + f(nb + 1) + '" r="' + f(br) + '"/>'; if (lightX != null && r() < 0.5) underHi += '<circle cx="' + f(x + (lightX < x ? -1 : 1) * br * 0.25) + '" cy="' + f(nb - br * 0.4) + '" r="' + f(br * 0.45) + '"/>'; }
+    b += '<g fill="' + near.round + '">' + under + '</g><g fill="' + near.roundLit + '" opacity=".45">' + underHi + '</g>';
+
+    /* a creek runs along the back of the clearing and catches the light */
+    b += '<path d="M0 ' + cTop + 'q' + f(w / 8) + ' -2.4 ' + f(w / 4) + ' 0t' + f(w / 4) + ' 0t' + f(w / 4) + ' 0t' + f(w / 4) + ' 0V' + (gy + 6) + 'H0Z" fill="url(#crk)"/>';
+    var gl = '';
+    for (x = 4 + r() * 20; x < w; x += 16 + r() * 40) gl += 'M' + f(x) + ' ' + f(cTop + 2.5 + r() * Math.max(1, gy - cTop - 9)) + 'h' + f(4 + r() * 9);
+    b += '<path d="' + gl + '" stroke="#fff" stroke-width="1" stroke-linecap="round" opacity="' + (phase === 'night' ? 0.22 : 0.5) + '" fill="none"/>';
+    if (lightX != null) b += '<ellipse cx="' + f(lightX) + '" cy="' + (cTop + 4) + '" rx="' + f(w * 0.07) + '" ry="3.2" fill="' + (sunUp ? sunCol : '#e9edd8') + '" opacity="' + (sunUp ? 0.5 : 0.3) + '"/>';
+    for (i = 0; i < Math.round(w / 230); i++) { x = r() * w; var rr = 4 + r() * 4; b += '<ellipse cx="' + f(x) + '" cy="' + (cTop + 5) + '" rx="' + f(rr) + '" ry="' + f(rr * 0.45) + '" fill="' + shade('#66736a') + '"/><ellipse cx="' + f(x - 1) + '" cy="' + f(cTop + 4.2) + '" rx="' + f(rr * 0.6) + '" ry="' + f(rr * 0.22) + '" fill="' + shade('#5d8a3c') + '"/>'; }
+
+    /* the clearing: three rolling bands, brightest where the light falls */
+    var edgePath = 'M0 ' + (gy - 4) + 'Q' + f(w * 0.2) + ' ' + (gy - 10) + ' ' + f(w * 0.45) + ' ' + (gy - 4) + 'T' + w + ' ' + (gy - 6);
+    b += '<path d="' + edgePath + 'V' + h + 'H0Z" fill="url(#clr)"/><path d="' + edgePath + '" stroke="' + mix(g1, '#ffffff', 0.3) + '" stroke-width="1.4" fill="none" opacity=".45"/>' +
+         '<path d="M0 ' + (gy + 6) + 'Q' + f(w * 0.3) + ' ' + gy + ' ' + f(w * 0.6) + ' ' + (gy + 6) + 'T' + w + ' ' + (gy + 3) + 'V' + h + 'H0Z" fill="' + g2 + '" opacity=".8"/>' +
          '<path d="M0 ' + (gy + 24) + 'Q' + f(w * 0.35) + ' ' + (gy + 16) + ' ' + f(w * 0.7) + ' ' + (gy + 24) + 'T' + w + ' ' + (gy + 20) + 'V' + h + 'H0Z" fill="' + g3 + '"/>';
-    if (o.phase !== 'night') for (i = 0; i < Math.round(w / 150); i++) b += '<ellipse cx="' + f(r() * w) + '" cy="' + f(gy + 2 + r() * 12) + '" rx="' + f(30 + r() * 46) + '" ry="' + f(3 + r() * 3) + '" fill="' + ph.sun + '" opacity="' + f(0.07 + r() * 0.08) + '"/>';
-    var bgd = '';
-    P.decor.forEach(function (d) { if (d.layer === 'bg' && show[d.id]) bgd += place(d, gy - 6, k * 0.95); });
-    if (bgd) b += '<g style="' + live + '">' + bgd + '</g>';
-    var tufts = '', fl = '', litter = '', fcol = ['#f3e9a8', '#ffffff', '#c9a7ee', '#f0b6c8'];
+    if (phase !== 'night') for (i = 0; i < Math.round(w / 150); i++) b += '<ellipse cx="' + f(r() * w) + '" cy="' + f(gy + 2 + r() * 12) + '" rx="' + f(30 + r() * 46) + '" ry="' + f(3 + r() * 3) + '" fill="' + ph.sun + '" opacity="' + f(0.07 + r() * 0.08) + '"/>';
+    b += back;
+    /* grass, flowers and small finds, kept clear of the plants and decorations */
+    var clear = function (px) { return slots.every(function (s2) { return Math.abs(s2 - px) > 46 * k; }) && taken.every(function (t2) { return Math.abs(t2 - px) > 34 * k; }); };
+    var tufts = '', fl = '', litter = '', finds = '', fcol = ['#f3e9a8', '#ffffff', '#c9a7ee', '#f6d98a'];
     for (x = 8; x < w; x += 11 + r() * 24) {
       var th = 5 + r() * 7, ty = gy + 2 + r() * 5;
       tufts += 'M' + f(x) + ' ' + f(ty) + 'l-3 ' + f(-th) + 'M' + f(x) + ' ' + f(ty) + 'l0 ' + f(-th - 2) + 'M' + f(x) + ' ' + f(ty) + 'l3.5 ' + f(-th + 1);
-      if (!S.snow && r() < (o.season === 'spring' ? 0.75 : 0.4)) fl += '<circle cx="' + f(x + 6) + '" cy="' + f(ty - 2 - r() * 4) + '" r="1.5" fill="' + fcol[Math.floor(r() * fcol.length)] + '" opacity=".9"/>';
+      if (!S.snow && r() < (o.season === 'spring' ? 0.7 : 0.4)) fl += '<circle cx="' + f(x + 6) + '" cy="' + f(ty - 2 - r() * 4) + '" r="1.5" fill="' + fcol[Math.floor(r() * fcol.length)] + '" opacity=".9"/>';
       if (o.season === 'autumn' && r() < 0.6) litter += leaf(x + 3, ty + 1 + r() * 3, 5, 2, r() * 360, ['#d9822b', '#c9552a', '#e8b45a'][Math.floor(r() * 3)]);
     }
-    b += '<path d="' + tufts + '" stroke="' + shade(S.grass) + '" stroke-width="1.4" stroke-linecap="round" fill="none" opacity=".85"/>' + fl + litter;
-    var fgd = '';
-    items.forEach(function (it, idx) { fgd += '<ellipse cx="' + f(slots[idx]) + '" cy="' + (gy + 3) + '" rx="' + f(34 * k) + '" ry="' + f(4.6 * k) + '" fill="#081209" opacity=".42"/>'; });
-    P.decor.forEach(function (d) { if (d.layer === 'fg' && show[d.id]) fgd += place(d, gy + 2 + (d.dy || 0) * k, k); });
-    b += '<g style="' + live + '">' + fgd + '</g>' + glow;
+    for (i = 0; i < Math.round(w / 120); i++) {
+      x = 24 + r() * (w - 48);
+      var fy = gy + 5 + r() * 9, kind = r();
+      if (!clear(x)) continue;
+      if (kind < 0.45) finds += '<g transform="translate(' + f(x) + ' ' + f(fy) + ')"><rect x="-1" y="-5" width="2" height="5" fill="#e9dfc6"/><path d="M-4.5 -4.6Q0 -11 4.5 -4.6Z" fill="#b5532f"/><rect x="4" y="-3.4" width="1.6" height="3.4" fill="#e9dfc6"/><path d="M1.6 -3Q4.8 -8 8 -3Z" fill="#c9703a"/></g>';
+      else if (kind < 0.8) { for (var q = -2; q <= 2; q++) finds += leaf(x, fy, 9 + r() * 5, 2.4, -90 + q * 27, q % 2 ? shade(S.grass) : shade(mix(S.grass, '#1c4526', 0.35))); }
+      else finds += '<ellipse cx="' + f(x) + '" cy="' + f(fy) + '" rx="7" ry="3.2" fill="' + shade('#66736a') + '"/><ellipse cx="' + f(x - 1) + '" cy="' + f(fy - 1.2) + '" rx="4.6" ry="1.6" fill="' + shade('#5d8a3c') + '"/>';
+    }
+    b += '<path d="' + tufts + '" stroke="' + shade(S.grass) + '" stroke-width="1.4" stroke-linecap="round" fill="none" opacity=".85"/>' + fl + litter + finds;
+    var stagger = function (idx) { return o.banner ? 0 : idx % 2 ? 5 : 0; };   /* alternate plants stand a little nearer, so they do not line up */
+    items.forEach(function (it, idx) { b += '<ellipse cx="' + f(slots[idx]) + '" cy="' + (gy + 3 + stagger(idx)) + '" rx="' + f(34 * k) + '" ry="' + f(4.6 * k) + '" fill="#081209" opacity=".42"/>'; });
+    b += front + glow;
     html += b + '</svg>';
 
     /* 4. the plants: each one a link with its label */
-    var ink = S.snow && o.phase !== 'night' ? ['#30444a', '#16262b'] : ['#c7d8c4', '#f1f6ee'];
+    var ink = S.snow && phase !== 'night' ? ['#30444a', '#16262b'] : ['#c7d8c4', '#f1f6ee'];
     items.forEach(function (it, idx) {
-      var bw = 130 * k, left = slots[idx] - bw / 2, top = gy + 2 - 122 * k;
-      var art = '<div class="' + (o.grew === it.id ? 'grew' : '') + '"><div class="' + (o.still ? '' : 'sway') + '" style="animation-duration:' + f(5.5 + (idx % 3) * 1.3) + 's;animation-delay:-' + f(idx * 1.7) + 's">' +
-        '<svg viewBox="-65 -122 130 132" width="' + f(bw) + '" height="' + f(132 * k) + '" style="' + live + '" aria-hidden="true"><defs>' + P.defs + '</defs>' + P.draw(it.plant, it.stage) + '</svg></div></div>';
-      html += o.banner ? '<div class="splant" style="left:' + f(left) + 'px;top:' + f(top) + 'px;width:' + f(bw) + 'px">' + art + '</div>' :
-        '<a class="splant" href="#/' + it.id + '" style="left:' + f(left) + 'px;top:' + f(top) + 'px;width:' + f(bw) + 'px" aria-label="' + it.name + ', level ' + it.level + '">' + art +
-        '<span class="plab" style="top:' + f(122 * k + 8) + 'px"><span class="pn" style="color:' + ink[0] + '">' + it.name + '</span><span class="pl" style="color:' + ink[1] + '">Lv ' + it.level + '</span></span></a>';
+      var pk = k * (stagger(idx) ? 1.05 : 1), bw = 130 * pk, left = slots[idx] - bw / 2, topY = gy + 2 + stagger(idx) - 122 * pk, sd = 5.5 + (idx % 3) * 1.3;
+      var art = '<div class="' + (o.grew === it.id ? 'grew' : '') + '"><div class="' + (o.still ? '' : 'sway') + '" style="animation-duration:' + f(sd) + 's;animation-delay:' + at(sd * 2, idx * 1.7) + '">' +
+        '<svg viewBox="-65 -122 130 132" width="' + f(bw) + '" height="' + f(132 * pk) + '" style="' + live + '" aria-hidden="true"><defs>' + P.defs + '</defs>' + P.draw(it.plant, it.stage) + '</svg></div></div>';
+      html += o.banner ? '<div class="splant" style="left:' + f(left) + 'px;top:' + f(topY) + 'px;width:' + f(bw) + 'px">' + art + '</div>' :
+        '<a class="splant" href="#/' + it.id + '" style="left:' + f(left) + 'px;top:' + f(topY) + 'px;width:' + f(bw) + 'px" aria-label="' + it.name + ', level ' + it.level + '">' + art +
+        '<span class="plab" style="top:' + f(gy + 11 - topY) + 'px"><span class="pn" style="color:' + ink[0] + '">' + it.name + '</span><span class="pl" style="color:' + ink[1] + '">Lv ' + it.level + '</span></span></a>';
     });
 
     /* 5. small life */
     if (show.butterflies && !lit && !S.snow && !o.still) {
       items.slice(0, 4).forEach(function (it, idx) {
-        html += '<div class="sfly" style="left:' + f(slots[idx] + (idx % 2 ? 26 : -34) * k) + 'px;top:' + f(gy - 44 * k - idx * 6) + 'px;animation-delay:-' + f(idx * 2.3) + 's">' +
-          '<svg class="flap" width="14" height="12" viewBox="-7 -7 14 12" aria-hidden="true"><path d="M0 0q-5 -6 -6 0q1 5 6 0q5 -6 6 0q-1 5 -6 0" fill="' + ['#f4c531', '#9db4f5', '#f08a6a', '#e39ac8'][idx % 4] + '"/></svg></div>';
+        html += '<div class="sfly" style="left:' + f(slots[idx] + (idx % 2 ? 26 : -34) * k) + 'px;top:' + f(gy - 44 * k - idx * 6) + 'px;animation-delay:' + at(9, idx * 2.3) + '">' +
+          '<svg class="flap" width="14" height="12" viewBox="-7 -7 14 12" aria-hidden="true"><path d="M0 0q-5 -6 -6 0q1 5 6 0q5 -6 6 0q-1 5 -6 0" fill="' + ['#f4c531', '#9db4f5', '#f08a6a', '#c9a7ee'][idx % 4] + '"/></svg></div>';
       });
     }
     if (flame && lit && !o.still) html += '<i class="sflame" style="left:' + f(flame[0] - flame[2]) + 'px;top:' + f(flame[1] - flame[2]) + 'px;width:' + f(flame[2] * 2) + 'px;height:' + f(flame[2] * 2) + 'px"></i>';
-    if (lit && !S.snow) for (i = 0; i < Math.round(w / 70); i++) html += '<i class="' + (o.still ? 'ffs' : 'ff') + '" style="left:' + f(r() * w) + 'px;top:' + f(gy - 6 - r() * 76) + 'px;animation-delay:' + f(-r() * 6) + 's"></i>';
+    if (lit && !S.snow) for (i = 0; i < Math.round(w / 70); i++) html += '<i class="' + (o.still ? 'ffs' : 'ff') + '" style="left:' + f(r() * w) + 'px;top:' + f(gy - 6 - r() * 76) + 'px;animation-delay:' + at(5, r() * 5) + '"></i>';
 
-    /* 6. the frame: trunks at the edges, leaves hanging in from the top corners, dark grass at the bottom corners */
+    /* 6. the frame: trunks at the edges, leaves hanging in from the top corners, foliage in the bottom corners */
     var cols = [mix('#0d2416', '#06100c', 1 - dim), mix('#17381f', '#06100c', 1 - dim), mix('#234f2c', '#06100c', 1 - dim), mix('#2f6a3a', '#06100c', 1 - dim)];
     if (o.season === 'autumn') cols[3] = mix('#8a5a22', '#06100c', 1 - dim);
-    var c = svgOpen('s-frame'), span = Math.min(w * 0.34, 330), depth = o.banner ? 34 : o.big ? 78 : 58, tw = narrow ? 7 : Math.max(12, Math.min(40, w * 0.036));
-    if (!o.banner) c += edgeTrunk(w, h, 0, tw, rng(51), mix('#17100a', '#050806', 1 - dim)) + edgeTrunk(w, h, 1, tw * 0.8, rng(52), mix('#17100a', '#050806', 1 - dim));
+    var c = svgOpen('s-frame') + '<defs>' + P.defs + '</defs>', span = Math.min(w * 0.34, 330), depth = o.banner ? 34 : o.big ? 78 : 58, tw = narrow ? 7 : Math.max(12, Math.min(40, w * 0.036)), bark = mix('#17100a', '#050806', 1 - dim);
+    if (!o.banner) c += edgeTrunk(w, h, 0, tw, rng(51), bark) + edgeTrunk(w, h, 1, tw * 0.8, rng(52), bark);
+    if (show.owl && perch) {   /* the owl sits on a branch reaching out from the left trunk */
+      var oy = h * 0.47, ox = tw * 0.6;
+      c += '<path d="M' + f(ox) + ' ' + f(oy + 5) + 'Q' + f(ox + 32) + ' ' + f(oy + 4) + ' ' + f(ox + 66) + ' ' + f(oy - 6) + '" stroke="' + bark + '" stroke-width="4.6" fill="none" stroke-linecap="round"/>' +
+        leaf(ox + 62, oy - 6, 13, 4.2, -28, cols[2]) + leaf(ox + 54, oy - 3, 12, 3.8, 42, cols[1]) + leaf(ox + 66, oy - 5, 11, 3.6, 12, cols[3]) +
+        '<g transform="translate(' + f(ox + 36) + ' ' + f(oy + 1.5) + ') scale(1.1)" style="' + live + '">' + DECOR.owl(dctx, S, true)[0] + '</g>';
+    }
     c += canopy(w, rng(61), 0, cols, span, depth) + (o.banner ? '' : canopy(w, rng(62), 1, cols, span * 0.8, depth * 0.85));
     if (!o.banner && !narrow) {   /* left out on a phone, where it would cover the outer plant labels */
       var bl = '';
       [[0, 1], [w, -1]].forEach(function (cn) {
         for (i = 0; i < 9; i++) { var bh = 26 + r() * 34, bxx = cn[0] + cn[1] * (r() * 50 - 4); bl += 'M' + f(bxx) + ' ' + h + 'Q' + f(bxx + cn[1] * bh * 0.1) + ' ' + f(h - bh * 0.6) + ' ' + f(bxx + cn[1] * bh * 0.45) + ' ' + f(h - bh) + 'Q' + f(bxx + cn[1] * bh * 0.2) + ' ' + f(h - bh * 0.5) + ' ' + f(bxx + cn[1] * 5) + ' ' + h + 'Z'; }
+        for (i = 0; i < 4; i++) c += leaf(cn[0] + cn[1] * (2 + r() * 26), h + 3, 30 + r() * 30, 7 + r() * 4, cn[1] > 0 ? -(48 + r() * 36) : -(132 - r() * 36), cols[1 + (i % 2)], cols[0]);
       });
       c += '<path d="' + bl + '" fill="' + cols[0] + '"/>';
     }
     html += c + '</svg>';
 
-    /* 7. whatever is falling this season */
-    if (!o.still) {
-      var kind = S.fall, count = Math.round(w / (kind === 'mote' ? 90 : o.banner ? 120 : 60)), pal = { leaf: ['#d9822b', '#c9552a', '#e8b45a', '#a8482b'], petal: ['#f6bdd3', '#fbdbe5', '#f4a9c4'], snow: ['#ffffff'], mote: ['#fff3c4'] }[kind];
+    /* 7. whatever drifts through the air this season */
+    if (!o.still && o.falling !== false) {
+      var kind2 = S.fall, count = Math.round(w / (kind2 === 'mote' ? 90 : o.banner ? 120 : 60)), pal = { leaf: ['#d9822b', '#c9552a', '#e8b45a', '#a8482b'], snow: ['#ffffff'], mote: ['#fff3c4'] }[kind2];
       for (i = 0; i < count; i++) {
-        var fd = kind === 'snow' ? 9 + r() * 8 : kind === 'mote' ? 16 + r() * 12 : 8 + r() * 9;
-        html += '<i class="fall ' + kind + '" style="--x:' + f(r() * w) + 'px;--dx:' + f((r() - 0.3) * 90) + 'px;--h:' + (h - 26) + 'px;--r:' + Math.round(200 + r() * 500) + 'deg;background:' + pal[Math.floor(r() * pal.length)] +
-          ';animation-duration:' + f(fd) + 's;animation-delay:-' + f(r() * fd) + 's"></i>';
+        var fd = kind2 === 'snow' ? 9 + r() * 8 : kind2 === 'mote' ? 16 + r() * 12 : 8 + r() * 9;
+        html += '<i class="fall ' + kind2 + '" style="--x:' + f(r() * w) + 'px;--dx:' + f((r() - 0.3) * 90) + 'px;--h:' + (h - 26) + 'px;--r:' + Math.round(200 + r() * 500) + 'deg;background:' + pal[Math.floor(r() * pal.length)] +
+          ';animation-duration:' + f(fd) + 's;animation-delay:' + at(fd, r() * fd) + '"></i>';
       }
     }
-    return '<div class="sc ' + o.phase + (o.banner ? ' sbanner' : '') + '" style="width:' + w + 'px;height:' + h + 'px"' + (o.banner ? ' aria-hidden="true"' : '') + '>' + html + '</div>';
+    return '<div class="sc ' + phase + (o.banner ? ' sbanner' : '') + '" style="width:' + w + 'px;height:' + h + 'px"' + (o.banner ? ' aria-hidden="true"' : '') + '>' + html + '</div>';
   };
 })();
