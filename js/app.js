@@ -535,14 +535,16 @@
         '<button class="btn ghost" data-act="sync-off">Disconnect this device</button></div>' +
         '<p class="hint">To add another device, copy the connection code, send it to yourself, and paste it into this card there. Treat the code like a password.</p></section>';
     }
-    return '<section class="card">' + head + '</header><p class="sub">Keeps your PC and phone in step through a Google Sheet that only you own. First device: follow the steps. Other devices: paste a connection code below.</p>' +
+    return '<section class="card">' + head + '</header><p class="sub">Keeps your PC and phone in step through a Google Sheet that only you own. The steps are for the very first setup. Every other device, browser or copy of this page just needs a connection code pasted below.</p>' +
       '<ol class="steps-list"><li>In Chrome, open <b>sheets.new</b> to make a Google Sheet. Name it Grove data.</li>' +
       '<li>In the sheet, open <b>Extensions</b>, then <b>Apps Script</b>. Delete the few lines already there.</li>' +
       '<li><button class="btn sm primary" data-act="sync-script">Copy the script</button> then paste it in and press Save.</li>' +
       '<li>Press <b>Deploy</b>, then <b>New deployment</b>. Type: <b>Web app</b>. Execute as: <b>Me</b>. Who has access: <b>Anyone</b>. Press Deploy.</li>' +
       '<li>Google asks you to approve your own script: pick your account, then <b>Advanced</b>, then <b>Go to the project</b>, then <b>Allow</b>.</li>' +
       '<li>Copy the <b>Web app URL</b> it shows and paste it here.</li></ol>' +
-      '<form class="addrow" data-form="sync-connect"><input type="text" name="t" placeholder="Web app link, or a connection code" aria-label="Web app link or connection code" required data-key="sync-in"><button class="btn sm primary">Connect</button></form>' +
+      '<form class="addrow" data-form="sync-connect"><input type="text" name="t" placeholder="Web app link, or a connection code" aria-label="Web app link or connection code" required data-key="sync-in">' +
+      '<input type="text" name="k" placeholder="Key (only if the script was copied on a different page or device)" aria-label="Key from line 6 of the script, optional" autocomplete="off" data-key="sync-key">' +
+      '<button class="btn sm primary">Connect</button></form>' +
       (view.syncMsg ? '<p class="hint warn">' + esc(view.syncMsg) + '</p>' : '') +
       '<details class="tview"><summary>Show the script</summary><textarea readonly rows="8" class="code" aria-label="Google script">' + esc(Y.script()) + '</textarea></details></section>';
   }
@@ -712,7 +714,7 @@
     if (kind === 'task') S.addTask(f.dataset.date, v);
     else if (kind === 'sync-connect') {
       view.syncMsg = 'Connecting.';
-      LD.sync.connect(v).then(function (err) { view.syncMsg = err; render(); if (!err) toast('Connected. Your data is syncing.'); });
+      LD.sync.connect(v, f.elements.k.value).then(function (err) { view.syncMsg = err; render(); if (!err) toast('Connected. Your data is syncing.'); });
     }
     else if (kind === 'rename') { S.rename(f.dataset.id, v); view.edit = null; }
     else if (kind === 'add-habit') { S.addHabit(v, f.elements.area.value, f.elements.group.value); toast('Habit added'); }

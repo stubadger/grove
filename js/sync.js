@@ -76,7 +76,7 @@
 
   var MSG = {
     link: 'That does not look like a Google script link or a connection code.',
-    key: 'The key did not match. Copy the script again, paste it over the old one in Google, and make a new deployment.',
+    key: 'The key did not match. Copy the key from line 6 of your Google script (the letters and numbers between the quotes) into the Key box, or paste a connection code from a device that is already connected.',
     net: 'Could not reach the sheet. Check you are online, that the link ends in /exec, and that access is set to Anyone.'
   };
 
@@ -110,19 +110,21 @@
     script: function () { return SCRIPT.replace('%KEY%', Y.key()); },
     /* one line that carries the link and key to another device */
     code: function () { return 'grove1:' + btoa(Y.cfg.url + '|' + Y.cfg.key); },
-    parse: function (text) {
+    /* text is a connection code, or a web app link. A link needs a key: the one typed in, else the one this page made. */
+    parse: function (text, key) {
       text = String(text || '').trim();
+      key = String(key || '').replace(/['"\s]/g, '');
       if (text.indexOf('grove1:') === 0) {
         try { var p = atob(text.slice(7)).split('|'); if (okUrl(p[0]) && p[1]) return { url: p[0], key: p[1] }; } catch (e) {}
         return null;
       }
-      return okUrl(text) ? { url: text, key: Y.key() } : null;
+      return okUrl(text) ? { url: text, key: key || Y.key() } : null;
     },
 
     /* Connect this device. The sheet wins for anything it already has; everything else here is sent up.
        Resolves with null, or a message saying what went wrong. */
-    connect: function (text) {
-      var c = Y.parse(text);
+    connect: function (text, key) {
+      var c = Y.parse(text, key);
       if (!c) return Promise.resolve(MSG.link);
       if (S.state.demo) return Promise.resolve('Clear the demo data first.');
       var prev = Y.cfg;
