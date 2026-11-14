@@ -33,7 +33,7 @@
     night: { sky: ['#050f0e', '#12332d'], haze: '#1d3d36', dim: 0.56, sun: '#e9edd8', cloud: '#27463f' }
   };
   var SEASON = {
-    spring: { name: 'Spring', pine: '#4a8a52', round: '#79b75f', ground: ['#4a8f48', '#33703a', '#24552c'], grass: '#7fc463', water: '#5fb0a6', accent: '#b5d56a', accent2: '#7fb069', fall: 'mote', blossom: '#f7d9e3' },
+    spring: { name: 'Spring', pine: '#4a8a52', round: '#79b75f', ground: ['#4a8f48', '#33703a', '#24552c'], grass: '#7fc463', water: '#5fb0a6', accent: '#b5d56a', accent2: '#7fb069', fall: 'mote' },
     summer: { name: 'Summer', pine: '#3a774a', round: '#4f9a4f', ground: ['#3d7e41', '#2a5f33', '#1c4526'], grass: '#62ac55', water: '#4aa39a', accent: '#a7c957', accent2: '#7fb069', fall: 'mote' },
     autumn: { name: 'Autumn', pine: '#466f47', round: '#c9772e', ground: ['#6a6a31', '#4d4f24', '#383a1a'], grass: '#9a9a40', water: '#5a9a8c', accent: '#e8b45a', accent2: '#c98a3a', fall: 'leaf' },
     winter: { name: 'Winter', pine: '#487268', round: '#93a3a1', ground: ['#e1eaec', '#c3d1d6', '#a8bac0'], grass: '#a9bcbc', water: '#cfe3ea', accent: '#a9d3e0', accent2: '#7fb3c4', fall: 'snow', snow: true }
@@ -403,7 +403,7 @@
     b += forest(w, fb, o.big ? 24 : 16, o.big ? 52 : 34, o.big ? 15 : 11, rng(11), layer(0.66, 0), S, 0, lightX) +
          '<rect x="0" y="' + (fb - 30) + '" width="' + w + '" height="' + (mb - fb + 34) + '" fill="url(#mist)"/>' +
          forest(w, mb, o.big ? 44 : 28, o.big ? 86 : 56, o.big ? 26 : 19, rng(21), layer(0.36, 0.08), S, 1, lightX);
-    if (sunUp && sky.sun.alt > 2) {   /* shafts of light fan out from the sun to the ground */
+    if (sunUp && sy < fb + 2 - (o.big ? 120 : 64)) {   /* shafts of light, only once the sun has cleared the mountains */
       [[-0.26, 0.035], [-0.09, 0.02], [0.08, 0.03], [0.27, 0.04]].forEach(function (ry) {
         var bx = sx + ry[0] * w;
         b += '<path d="M' + f(sx - 4) + ' ' + f(sy) + 'L' + f(bx - w * ry[1]) + ' ' + (gy + 8) + 'H' + f(bx + w * ry[1]) + 'L' + f(sx + 4) + ' ' + f(sy) + 'Z" fill="url(#ray)"/>';
