@@ -195,6 +195,33 @@
     return { values: sums.map(function (x, i) { return ns[i] ? Math.round(x / ns[i] * 100) : null; }), n: ns, ready: total >= 14, need: Math.max(0, 14 - total) };
   };
 
+  /* ================= phone reminders =================
+     A web page cannot schedule notifications by itself, so the reminders go into a calendar file (.ics)
+     that the owner adds to their phone's calendar. Times are "floating", meaning local time wherever the phone is. */
+  LD.reminders = {
+    list: function () {
+      var s = S.state.settings, r = s.remind, U = LD.ui, out = [];
+      if (r.morning) out.push({ id: 'morning', at: s.wake, title: 'Grove: morning check-in', note: 'Open Grove and tick your morning list.' });
+      if (r.winddown) out.push({ id: 'winddown', at: U.shift(s.bed, -s.screensDownMin), title: 'Grove: screens down', note: 'Wind-down time. Bed at ' + U.fmtTime(s.bed) + '.' });
+      if (r.evening) out.push({ id: 'evening', at: r.eveningAt, title: 'Grove: evening check-in', note: 'Enter your steps and tick the evening list.' });
+      return out;
+    },
+    ics: function () {
+      var url = location.protocol === 'https:' ? location.origin + location.pathname : C.siteUrl, now = new Date();
+      var p = function (n) { return (n < 10 ? '0' : '') + n; }, clean = function (t) { return String(t).replace(/([,;\\])/g, '\\$1'); };
+      var day = '' + now.getFullYear() + p(now.getMonth() + 1) + p(now.getDate()), stamp = now.toISOString().replace(/[-:]/g, '').slice(0, 15) + 'Z';
+      var lines = ['BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//Grove//Reminders//EN', 'CALSCALE:GREGORIAN', 'METHOD:PUBLISH'];
+      LD.reminders.list().forEach(function (e) {
+        lines.push('BEGIN:VEVENT', 'UID:grove-' + e.id + '@grove.local', 'DTSTAMP:' + stamp, 'SEQUENCE:' + Math.floor(now.getTime() / 60000),
+          'DTSTART:' + day + 'T' + e.at.replace(':', '') + '00', 'DURATION:PT5M', 'RRULE:FREQ=DAILY', 'SUMMARY:' + clean(e.title),
+          'DESCRIPTION:' + clean(e.note) + '\\n' + url, 'URL:' + url,
+          'BEGIN:VALARM', 'ACTION:DISPLAY', 'DESCRIPTION:' + clean(e.title), 'TRIGGER:PT0M', 'END:VALARM', 'END:VEVENT');
+      });
+      lines.push('END:VCALENDAR');
+      return lines.join('\r\n') + '\r\n';
+    }
+  };
+
   /* ================= meal planner ================= */
   var M = LD.meals = {
     all: function () { return C.meals.concat(S.state.settings.custom.meals.filter(function (m) { return !m.removed; })); },

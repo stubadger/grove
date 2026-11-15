@@ -474,6 +474,21 @@ h1, h2, h3, h4, .rank, .brand { font-optical-sizing: auto; }
 .mealform .btn { justify-self: start; }
 .meal .btn.on { background: color-mix(in srgb, var(--accent2) 22%, var(--bg2)); border-color: var(--accent2); color: var(--text); }
 
+/* ---------- habit management, inline add, misc ---------- */
+.sw > .dot { width: 8px; height: 8px; border-radius: 50%; flex: none; }
+label.mini { display: grid; gap: 3px; font-size: 12px; color: var(--muted); flex: 1 1 130px; }
+label.mini select { padding: 7px 10px; font-size: 14px; }
+form.sw.edit .btnrow { flex-basis: 100%; }
+.addrow label.mini { flex: 1 1 130px; }
+.addrow > .btn { align-self: flex-end; }
+.addlink { display: block; width: 100%; margin-top: 8px; padding: 8px; border: 1px dashed var(--line2); border-radius: 10px; background: none; color: var(--muted); font-size: 13px; }
+.addlink:hover { color: var(--accent); border-color: var(--accent2); }
+.addhere { display: grid; gap: 8px; margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--line); }
+.addhere input[type=text] { font-size: 15px; }
+.ystep { margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--line); }
+.banner.crash { max-width: 1128px; margin: 14px auto 0; border-color: #a8742f; }
+.version { text-align: center; color: var(--muted); font-size: 12px; margin: 22px 0 0; }
+
 /* ---------- small screens ---------- */
 @media (max-width: 760px) {
   .navin { height: 50px; }

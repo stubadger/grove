@@ -26,7 +26,8 @@
     lock: 'M6 11h12v9H6zM8.5 11V8a3.5 3.5 0 0 1 7 0v3',
     pencil: 'M4 20l1-4L16.5 4.5a2.1 2.1 0 0 1 3 3L8 19zM14.5 6.5l3 3',
     cloud: 'M7 18a4 4 0 0 1-.6-7.95A5.5 5.5 0 0 1 17 9.5a4.25 4.25 0 0 1 .5 8.5z',
-    sprout: 'M12 21V11M12 11C12 7 9 5 5 5c0 4 3 6 7 6M12 13c0-3 2.5-5 6.5-5 0 3.5-2.5 5-6.5 5'
+    sprout: 'M12 21V11M12 11C12 7 9 5 5 5c0 4 3 6 7 6M12 13c0-3 2.5-5 6.5-5 0 3.5-2.5 5-6.5 5',
+    clock: 'M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18zM12 7v5l3 2'
   };
   function icon(n) { return '<svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="' + (ICON[n] || '') + '"/></svg>'; }
 
@@ -104,18 +105,30 @@
   }
   function lastNight(date) {
     var y = D.add(date, -1), hs = S.habits().filter(function (h) { return h.late; });
-    var ui = S.state.settings.ui;
-    if (!ui.lastNight || !hs.length || D.hour() >= ui.lastNightUntil || y < S.state.startDate) return '';
+    var ui = S.state.settings.ui, needSteps = S.isOn('areas', LD.areaById.move) && !S.day(y).steps;   /* steps are easy to forget at night */
+    if (!ui.lastNight || (!hs.length && !needSteps) || D.hour() >= ui.lastNightUntil || y < S.state.startDate) return '';
     return '<section class="card"><header><h3>' + icon('moon') + ' Last night</h3><span class="count">' + D.fmt(y, { weekday: 'short' }) + '</span></header>' +
-      '<div class="ticks">' + hs.map(function (h) { return tickRow(h, y, 'ln-'); }).join('') + '</div><p class="hint">Tick what you managed before you fell asleep.</p></section>';
+      (hs.length ? '<div class="ticks">' + hs.map(function (h) { return tickRow(h, y, 'ln-'); }).join('') + '</div><p class="hint">Tick what you managed before you fell asleep.</p>' : '') +
+      (needSteps ? '<div class="stepsin ystep"><label for="steps-y">Yesterday’s steps</label><input id="steps-y" type="number" inputmode="numeric" min="0" max="99999" placeholder="From your watch" data-steps data-date="' + y + '" data-key="steps-y"></div>' : '') + '</section>';
   }
-  function groupCard(g, date, now) {
+  function areaOptions(sel) {
+    return S.areas().filter(function (a) { return a.kind !== 'tasks'; }).map(function (a) { return '<option value="' + a.id + '"' + (a.id === sel ? ' selected' : '') + '>' + a.name + '</option>'; }).join('');
+  }
+  function groupOptions(sel) {
+    return C.groups.map(function (g) { return '<option value="' + g.id + '"' + (g.id === sel ? ' selected' : '') + '>' + g.name + '</option>'; }).join('');
+  }
+  function groupCard(g, date, now, isToday) {
     var hs = S.habits().filter(function (h) { return h.group === g.id; });
     if (!hs.length) return '';
     var done = hs.filter(function (h) { return S.day(date).checks[h.id]; }).length;
     var all = done === hs.length;
+    /* a habit can be added straight onto this card */
+    var add = !isToday ? '' : view.addTo === g.id ?
+      '<form class="addhere" data-form="add-here" data-group="' + g.id + '"><input type="text" name="t" maxlength="80" placeholder="For example: Take tablets" aria-label="New habit" required data-key="add-here">' +
+      '<label class="mini">Counts towards<select name="area">' + areaOptions('upkeep') + '</select></label><div class="btnrow"><button class="btn sm primary">Add</button><button type="button" class="btn sm ghost" data-act="add-here-cancel">Cancel</button></div></form>' :
+      '<button class="addlink" data-act="add-here" data-group="' + g.id + '" data-key="addto-' + g.id + '">+ Add a habit here</button>';
     return '<section class="card' + (now && !all ? ' now' : '') + (all ? ' complete' : '') + '"><header><h3>' + icon(g.icon) + ' ' + g.name + '</h3>' + (now && !all ? '<span class="tag">Now</span>' : '') +
-      '<span class="count">' + (all ? 'All done' : done + '/' + hs.length) + '</span></header><div class="ticks">' + hs.map(function (h) { return tickRow(h, date); }).join('') + '</div></section>';
+      '<span class="count">' + (all ? 'All done' : done + '/' + hs.length) + '</span></header><div class="ticks">' + hs.map(function (h) { return tickRow(h, date); }).join('') + '</div>' + add + '</section>';
   }
   function moveCard(date, isToday) {
     var s = S.state.settings, day = S.day(date), goal = day.steps ? G.goalFor(day) : s.stepGoal, a = LD.areaById.move;
@@ -124,7 +137,7 @@
     var kind = day.workout ? day.workout.kind : null, plan = C.workouts.plans.filter(function (p) { return p.id === G.nextPlan(date); })[0];
     return '<section class="card"><header><h3>' + icon('pulse') + ' Movement</h3><a class="more" href="#/move">Details</a></header>' +
       '<div class="steps">' + CH.ring(104, day.steps ? day.steps / goal : 0, a.color, day.steps ? num(day.steps) : '–', 'of ' + num(goal)) +
-      '<div class="stepsin"><label for="steps">Steps ' + (isToday ? 'today' : 'that day') + '</label><input id="steps" type="number" inputmode="numeric" min="0" max="99999" value="' + (day.steps || '') +
+      '<div class="stepsin"><label for="steps">Steps ' + (isToday ? 'today' : 'that day') + '</label><input id="steps" data-steps type="number" inputmode="numeric" min="0" max="99999" value="' + (day.steps || '') +
       '" placeholder="From your watch" data-date="' + date + '" data-key="steps"><p class="hint">Type the number from your Garmin, then press Enter.</p></div></div>' +
       '<div class="wo"><div class="worow"><span class="lab">Workouts</span><span class="pips">' + pips + '</span><span class="count">' + sessions + '/' + s.workoutsPerWeek + ' this week</span></div>' +
       '<div class="btnrow"><button class="btn' + (kind === 'full' ? ' on' : '') + '" aria-pressed="' + (kind === 'full') + '" data-act="workout" data-kind="full" data-date="' + date + '" data-key="wo-full">' + (kind === 'full' ? 'Full session logged' : 'Full session') + '</button>' +
@@ -191,9 +204,9 @@
     C.groups.forEach(function (g) {
       var now = isToday && hr >= prev && hr < g.until; prev = g.until;
       if (g.id === 'day') cards += moveCard(date, isToday);
-      cards += groupCard(g, date, now);
+      cards += groupCard(g, date, now, isToday);
     });
-    return welcome + (isToday ? LD.more.recapBanner() : '') + hero(st, date, isToday) + '<div class="cards flow">' + (isToday ? lastNight(date) : '') + cards + choreCard(date) + taskCard(date) + (isToday ? LD.more.questsCard() : '') + '</div>' +
+    return welcome + (isToday ? LD.more.welcomeBack(st) + LD.more.recapBanner() : '') + hero(st, date, isToday) + '<div class="cards flow">' + (isToday ? lastNight(date) : '') + cards + choreCard(date) + taskCard(date) + (isToday ? LD.more.questsCard() : '') + '</div>' +
       '<h2 class="section-title">How it is going</h2><div class="cards">' + weekSection(date) + canopyCard(st) + '</div>';
   }
 
@@ -452,6 +465,23 @@
     return '<div class="sw"><span class="nm">' + esc(label) + (small ? '<small>' + esc(small) + '</small>' : '') + '</span>' + (extra || '') +
       '<button class="x" data-act="edit" data-kind="' + kind + '" data-id="' + item.id + '" aria-label="Rename ' + esc(label) + '" title="Rename" data-key="ed-' + item.id + '">' + icon('pencil') + '</button>' + toggle(kind, item, label) + '</div>';
   }
+  /* a habit in Settings. The pencil opens a small form: rename it, move it to another time of day, change its place in the list. */
+  function habitRow(h) {
+    var a = LD.areaById[h.area], label = txt(h);
+    if (view.edit === 'habits:' + h.id) {
+      var raw = S.text(h);
+      return '<form class="sw edit" data-form="edit-habit" data-id="' + h.id + '"><input type="text" name="t" maxlength="80" value="' + esc(raw) + '" aria-label="Name" data-key="rename">' +
+        '<label class="mini">Shows in<select name="group">' + groupOptions(h.group) + '</select></label>' +
+        (h.custom ? '<label class="mini">Counts towards<select name="area">' + areaOptions(h.area) + '</select></label>' : '') +
+        '<div class="btnrow"><button class="btn sm primary">Save</button><button type="button" class="btn sm ghost" data-act="edit-cancel">Cancel</button>' +
+        '<button type="button" class="btn sm ghost" data-act="move" data-id="' + h.id + '" data-dir="-1" aria-label="Move up the list" title="Move up" data-key="mv-up">▲</button>' +
+        '<button type="button" class="btn sm ghost" data-act="move" data-id="' + h.id + '" data-dir="1" aria-label="Move down the list" title="Move down" data-key="mv-down">▼</button>' +
+        (h.custom ? '<button type="button" class="btn sm danger" data-act="remove" data-kind="habits" data-id="' + h.id + '">Remove</button>' : '') + '</div>' +
+        (raw.indexOf('{') >= 0 ? '<small>{wake}, {bed} and {screens} are filled in from your target times.</small>' : '') + '</form>';
+    }
+    return '<div class="sw"><span class="dot" style="background:' + a.color + '" title="Counts towards ' + a.name + '"></span><span class="nm">' + esc(label) + '</span>' +
+      '<button class="x" data-act="edit" data-kind="habits" data-id="' + h.id + '" aria-label="Change ' + esc(label) + '" title="Rename, move or reorder" data-key="ed-' + h.id + '">' + icon('pencil') + '</button>' + toggle('habits', h, label) + '</div>';
+  }
   function settings(st) {
     var s = S.state.settings, ui = s.ui;
     var fld = function (label, attr, key, type, value, attrs) {
@@ -479,13 +509,14 @@
       C.areas.map(function (a) { return '<label class="sw"><span class="nm">' + a.name + '<small>' + esc(a.blurb || '') + '</small></span>' + toggle('areas', a, a.name) + '</label>'; }).join('') + '</section>';
 
     var all = S.allHabits();
-    var habits = '<section class="card"><header><h3>' + icon('check') + ' Daily habits</h3></header><p class="sub">Switch habits on or off, rename them with the pencil, or add your own.</p>' + active.map(function (a) {
-      var hs = all.filter(function (h) { return h.area === a.id; });
-      return hs.length ? '<p class="grp">' + a.name + '</p>' + hs.map(function (h) { return itemRow('habits', h, txt(h)); }).join('') : '';
-    }).join('') +
-      '<form class="addrow" data-form="add-habit"><input type="text" name="t" maxlength="80" placeholder="New habit, for example: Stretch for 5 minutes" aria-label="New habit" required>' +
-      '<select name="area" aria-label="Section">' + options(active.filter(function (a) { return a.kind !== 'tasks'; }).map(function (a) { return [a.id, a.name]; }), '') + '</select>' +
-      '<select name="group" aria-label="Time of day">' + options(C.groups.map(function (g) { return [g.id, g.name]; }), 'day') + '</select><button class="btn sm primary">Add habit</button></form></section>';
+    var habits = '<section class="card"><header><h3>' + icon('check') + ' Daily habits</h3></header><p class="sub">Listed by the card they appear on. The pencil renames a habit, moves it to another time of day, or changes its place in the list. The dot shows which section it counts towards.</p>' +
+      C.groups.map(function (g) {
+        var hs = all.filter(function (h) { return h.group === g.id && S.isOn('areas', LD.areaById[h.area]); });
+        return '<p class="grp">' + g.name + '</p>' + (hs.length ? hs.map(habitRow).join('') : '<p class="empty">Nothing here yet.</p>');
+      }).join('') +
+      '<form class="addrow" data-form="add-habit"><p class="grp" style="flex-basis:100%;margin:0">Add a habit</p><input type="text" name="t" maxlength="80" placeholder="For example: Take tablets" aria-label="New habit" required>' +
+      '<label class="mini">Shows in<select name="group">' + groupOptions('morning') + '</select></label>' +
+      '<label class="mini">Counts towards<select name="area">' + areaOptions('upkeep') + '</select></label><button class="btn sm primary">Add habit</button></form></section>';
 
     var chores = '<section class="card"><header><h3>' + icon('home') + ' Chores</h3></header><p class="sub">The number is how many days between each time.</p>' + S.allChores().map(function (c) {
       var label = S.text(c);
@@ -508,8 +539,9 @@
     var data = '<section class="card"><header><h3>Your data</h3></header><p class="sub">Saved in this browser on this device. Download a backup now and then.</p><div class="btnrow">' +
       '<button class="btn" data-act="export">Download backup</button><label class="btn" style="cursor:pointer">Restore backup<input type="file" accept="application/json,.json" data-import hidden></label>' +
       (S.state.demo ? '<button class="btn primary" data-act="demo-clear">Clear demo data</button>' : '<button class="btn ghost" data-act="demo-load">Show demo data</button>') +
-      '<button class="btn danger" data-act="reset">Erase everything</button></div></section>';
-    return '<h2 class="section-title" style="margin-top:4px">Settings</h2><div class="cards flow wide">' + targets + look + sections + habits + chores + day + rewards + syncCard() + data + '</div>';
+      '<button class="btn danger" data-act="reset">Erase everything</button></div>' + LD.more.safetyCopies() + '</section>';
+    return '<h2 class="section-title" style="margin-top:4px">Settings</h2><div class="cards flow wide">' + targets + look + sections + habits + chores + day + LD.more.remindersCard() + rewards + syncCard() + data + '</div>' +
+      '<p class="version">' + esc(S.name()) + ' version ' + esc(C.version) + '</p>';
   }
   /* choose what grows for each section (shown on the Grove page) */
   function plantsCard(st) {
@@ -581,7 +613,18 @@
   }
   /* the sky to show: the owner's fixed choice, or by the clock */
   function phaseNow(live) { return live ? 'auto' : 'day'; }   /* 'auto' means the owner's Sky setting: the real sky, or a fixed one */
-  function render() {
+  /* Everything is drawn through render(), so a fault shows a message with a way out instead of a blank page. */
+  function render() { try { draw(); } catch (err) { crash(err); } }
+  function crash(err) {
+    if (window.console) console.error(err);
+    if (document.getElementById('crash')) return;
+    var el = document.createElement('div');
+    el.id = 'crash'; el.className = 'banner crash';
+    el.innerHTML = '<span><b>Something went wrong on this page.</b> What you have logged is still saved. Reloading usually fixes it. If it keeps happening, download a backup first.</span><span class="sp"></span>' +
+      '<button class="btn sm primary" data-act="reload">Reload</button><button class="btn sm" data-act="export">Download backup</button>';
+    $app.parentNode.insertBefore(el, $app);
+  }
+  function draw() {
     var r = route(), st = G.compute(), a = LD.areaById[r], html;
     var ae = document.activeElement, key = ae && ae.dataset ? ae.dataset.key : null;
     charts = [];
@@ -630,7 +673,7 @@
     setTimeout(function () { el.remove(); }, 6000);
   }
   function snap() {
-    var st = G.compute(), o = { total: st.total, level: st.level, areas: {}, quests: {} };
+    var st = G.compute(), o = { total: st.total, level: st.level, areas: {}, quests: {}, bonus: (st.perDay[D.today()] || {}).bonus || 0 };
     C.areas.forEach(function (a) { o.areas[a.id] = G.level(st.areaXP[a.id] || 0, C.xp.areaBase); });
     LD.quests.state(D.weekStart(D.today())).forEach(function (q) { if (q.done) o.quests[q.q.id] = q.text; });
     return o;
@@ -641,6 +684,7 @@
     C.areas.forEach(function (ar) { if (G.stage(a.areas[ar.id]) > G.stage(b.areas[ar.id])) view.grew = ar.id; });   /* that plant grows in front of you */
     render();
     for (var qid in a.quests) if (!b.quests[qid]) toast('Quest complete: ' + a.quests[qid]);
+    if (a.bonus > b.bonus) toast('Welcome back. Bonus: +' + a.bonus + ' XP');
     if (!fx) { if (a.level > b.level) toast('Level ' + a.level + ' reached'); return; }
     if (d > 0 && ev) {
       var x = ev.clientX, y = ev.clientY;
@@ -675,6 +719,13 @@
         var inp = $app.querySelector('[data-key="rename"]'); if (inp) { inp.focus(); inp.select(); }
         break;
       case 'edit-cancel': view.edit = null; render(); break;
+      case 'move': S.moveHabit(d.id, +d.dir); render(); break;
+      case 'add-here':
+        view.addTo = d.group; render();
+        var ai = $app.querySelector('[data-key="add-here"]'); if (ai) ai.focus();
+        break;
+      case 'add-here-cancel': view.addTo = null; render(); break;
+      case 'reload': location.reload(); break;
       case 'remove':
         if (confirm('Remove this from your lists? Everything you already ticked, and its XP, is kept.')) { S.removeCustom(d.kind, d.id); view.edit = null; render(); }
         break;
@@ -707,7 +758,8 @@
   });
   document.addEventListener('change', function (e) {
     var el = e.target, d = el.dataset;
-    if (el.id === 'steps') { act(function () { S.setSteps(d.date, parseInt(el.value, 10) || 0); }, { target: el }); return; }
+    if (LD.onChange && LD.onChange(el, d)) return;   /* controls that belong to pages-more.js */
+    if (d.steps !== undefined) { act(function () { S.setSteps(d.date, parseInt(el.value, 10) || 0); }, { target: el }); return; }
     if (d.set) {
       var s = S.state.settings, v = el.value;
       if (el.type === 'number') { v = parseInt(v, 10); if (!(v >= +el.min && v <= +el.max)) { render(); return; } }
@@ -733,7 +785,7 @@
       fr.readAsText(el.files[0]);
     }
   });
-  document.addEventListener('keydown', function (e) { if (e.key === 'Enter' && e.target.id === 'steps') e.target.blur(); });
+  document.addEventListener('keydown', function (e) { if (e.key === 'Enter' && e.target.dataset && e.target.dataset.steps !== undefined) e.target.blur(); });
   document.addEventListener('submit', function (e) {
     var f = e.target, kind = f.dataset.form;
     if (!kind) return;
@@ -747,6 +799,14 @@
       LD.sync.connect(v, f.elements.k.value).then(function (err) { view.syncMsg = err; render(); if (!err) toast('Connected. Your data is syncing.'); });
     }
     else if (kind === 'rename') { S.rename(f.dataset.id, v); view.edit = null; }
+    else if (kind === 'edit-habit') {
+      var hb = S.habit(f.dataset.id);
+      S.rename(f.dataset.id, hb && v === hb.text ? '' : v);
+      S.setGroup(f.dataset.id, f.elements.group.value);
+      if (f.elements.area) S.setArea(f.dataset.id, f.elements.area.value);
+      view.edit = null;
+    }
+    else if (kind === 'add-here') { S.addHabit(v, f.elements.area.value, f.dataset.group); view.addTo = null; toast('Habit added'); }
     else if (kind === 'add-habit') { S.addHabit(v, f.elements.area.value, f.elements.group.value); toast('Habit added'); }
     else if (kind === 'add-chore') { var n = parseInt(f.elements.every.value, 10); S.addChore(v, n >= 1 && n <= 120 ? n : 7); toast('Chore added'); }
     render();
@@ -804,6 +864,10 @@
   /* helpers that pages-more.js and extras.js use */
   LD.ui = { icon: icon, tile: tile, chart: chart, chartCard: chartCard, tableView: tableView, legend: legend, xpBar: xpBar, txt: txt, fmtTime: fmtTime, shift: shift,
             num: num, toast: toast, render: render, act: act, view: view, phaseNow: phaseNow, copyText: copyText, plantsCard: plantsCard };
+
+  window.addEventListener('error', function (e) { if (e.filename && e.filename.indexOf('/js/') >= 0) crash(e.error || e.message); });
+  /* On the published site, keep a copy of the app on the device so it opens without a connection (see sw.js). */
+  if ('serviceWorker' in navigator && location.protocol === 'https:') navigator.serviceWorker.register('sw.js').catch(function () {});
 
   S.load();
   render();

@@ -31,7 +31,7 @@
   var UI_DEFAULTS = { sky: 'auto', season: 'auto', hemi: 'auto', falling: true, fx: true, lastNight: true, lastNightUntil: 15, suggestGoal: true, name: '' };
 
   /* ---------------- store ---------------- */
-  var KEY = 'grove.v1', REAL = 'grove.v1.real';
+  var KEY = 'grove.v1', REAL = 'grove.v1.real', SNAP = 'grove.v1.snap.';
   var snap = {};   // record id -> its JSON at the last save, to spot what changed
   var S = LD.store = {
     state: null,
@@ -47,6 +47,9 @@
       s.xp = {};                                 // overrides for config xp values
       s.custom = { habits: [], chores: [], meals: [] };   // items added by the owner
       s.decor = {};                              // decoration id -> false when hidden
+      s.group = {};                              // habit id -> the card it was moved to (morning, day, evening)
+      s.order = [];                              // habit ids in the owner's chosen order
+      s.remind = { morning: true, winddown: true, evening: true, eveningAt: '20:30' };   // phone reminders to put in the calendar file
       s.ui = {};
       for (var u in UI_DEFAULTS) s.ui[u] = UI_DEFAULTS[u];
       s.dayStartsHour = C.dayStartsHour;
@@ -79,7 +82,39 @@
       if (raw) { try { st = JSON.parse(raw); } catch (e) { st = null; } }
       S.state = S.normalise(st);
       S.resnap();
+      S.snapshot();
       return S.state;
+    },
+    /* Safety copies: the first time the app opens each day it keeps a copy of everything as it stood, on this device.
+       The newest five are kept. They are separate from sync and from the backup file. */
+    snapshot: function () {
+      if (S.state.demo || !S.hasData()) return;
+      try {
+        var key = SNAP + D.today();
+        if (localStorage.getItem(key)) return;
+        var js = JSON.stringify(S.state);
+        if (js.length > 1500000) return;
+        localStorage.setItem(key, js);
+        S.snapshots().slice(5).forEach(function (d) { localStorage.removeItem(SNAP + d); });
+      } catch (e) {}
+    },
+    snapshots: function () {
+      var out = [];
+      try { for (var i = 0; i < localStorage.length; i++) { var k = localStorage.key(i); if (k && k.indexOf(SNAP) === 0) out.push(k.slice(SNAP.length)); } } catch (e) {}
+      return out.sort().reverse();
+    },
+    restoreSnapshot: function (date) {
+      var raw = null;
+      try { raw = localStorage.getItem(SNAP + date); } catch (e) {}
+      if (!raw) return false;
+      var old = S.state, k;
+      S.importText(raw);
+      /* anything logged since the copy was made is emptied rather than dropped, so other devices are told too */
+      for (k in old.days) if (!S.state.days[k]) S.state.days[k] = { checks: {} };
+      for (k in old.chores) if (!S.state.chores[k]) S.state.chores[k] = [];
+      for (k in old.weeks) if (!S.state.weeks[k]) S.state.weeks[k] = {};
+      S.save();
+      return true;
     },
     /* Saves to this browser. Also notes which records changed since the last save, so sync knows what to send.
        Demo data is never marked, so it can never reach the synced sheet. */
@@ -162,7 +197,30 @@
 
     /* Everything defined: the config lists plus items added in Settings.
        Removed custom items stay findable by id so their past XP still counts. */
-    allHabits: function () { return C.habits.concat(S.state.settings.custom.habits.filter(function (h) { return !h.removed; })); },
+    allHabits: function () {
+      var st = S.state.settings, ord = st.order || [];
+      return C.habits.concat(st.custom.habits.filter(function (h) { return !h.removed; })).map(function (h, i) {
+        var g = st.group[h.id], o = ord.indexOf(h.id), c = h, k;
+        if (g && g !== h.group) { c = {}; for (k in h) c[k] = h[k]; c.group = g; }   /* moved to another card */
+        return { h: c, k: o < 0 ? 1e6 + i : o };
+      }).sort(function (a, b) { return a.k - b.k; }).map(function (x) { return x.h; });
+    },
+    /* put a habit on another card (morning, day, evening), or change which section a habit the owner added counts towards */
+    setGroup: function (id, group) { S.state.settings.group[id] = group; S.save(); },
+    setArea: function (id, area) {
+      S.state.settings.custom.habits.forEach(function (h) { if (h.id === id) h.area = area; });
+      S.save();
+    },
+    /* move a habit one place up (-1) or down (1) within its card */
+    moveHabit: function (id, dir) {
+      var all = S.allHabits(), h = all.filter(function (x) { return x.id === id; })[0];
+      if (!h) return;
+      var peers = all.filter(function (x) { return x.group === h.group; }), other = peers[peers.indexOf(h) + dir];
+      if (!other) return;
+      var ids = all.map(function (x) { return x.id; }), a = ids.indexOf(id), b = ids.indexOf(other.id);
+      ids[a] = other.id; ids[b] = id;
+      S.state.settings.order = ids; S.save();
+    },
     allChores: function () { return C.chores.concat(S.state.settings.custom.chores.filter(function (c) { return !c.removed; })); },
     habit: function (id) {
       return cfgHabit[id] || S.state.settings.custom.habits.filter(function (h) { return h.id === id; })[0] || null;
@@ -354,14 +412,19 @@
       for (d in S.state.days) set[d] = 1;
       for (id in S.state.chores) S.state.chores[id].forEach(function (x) { set[x] = 1; });
       for (d in quest) set[d] = 1;
-      var list = Object.keys(set).sort();
+      var list = Object.keys(set).sort(), lastLogged = null;
       var st = { list: list, perDay: {}, total: 0, areaXP: {}, levelLog: [], level: 1,
                  totals: { steps: 0, workouts: 0, ticks: 0, daysLogged: 0, goalDays: 0, chores: 0, bestSteps: 0 } };
       list.forEach(function (date) {
         var x = G.dayXP(date), sum = 0, qa;
         for (qa in (quest[date] || {})) x[qa] = (x[qa] || 0) + quest[date][qa];   /* weekly quest rewards land on the day they were finished */
+        /* coming back after three or more days away earns a bonus, added to that day's strongest section */
+        var best = null, bonus = 0;
+        for (qa in x) if (x[qa] > 0 && (!best || x[qa] > x[best])) best = qa;
+        if (best && lastLogged && D.diff(date, lastLogged) >= 3) { bonus = C.xp.comeback || 0; x[best] += bonus; }
+        if (best) lastLogged = date;
         for (var a in x) { st.areaXP[a] = (st.areaXP[a] || 0) + x[a]; sum += x[a]; }
-        st.perDay[date] = { areas: x, total: sum };
+        st.perDay[date] = { areas: x, total: sum, bonus: bonus };
         st.total += sum;
         if (sum > 0) st.totals.daysLogged++;
         var L = G.level(st.total, C.xp.base);
@@ -379,6 +442,7 @@
         }
       });
       for (id in S.state.chores) st.totals.chores += S.state.chores[id].length;
+      st.lastLogged = lastLogged;
       return st;
     },
 

@@ -195,6 +195,57 @@
   LD.actions['meal-remove'] = function (d) {
     if (confirm('Remove this meal from your list?')) { M.remove(d.id); LD.ui.render(); }
   };
+  /* ================= coming back, reminders, safety copies ================= */
+  /* shown after a couple of days away: nothing was lost, and coming back is rewarded rather than punished */
+  LD.more.welcomeBack = function (st) {
+    var today = D.today(), last = st.lastLogged;
+    if (!last || last >= today) return '';
+    var gap = D.diff(today, last);
+    if (gap < 2) return '';
+    return '<div class="banner"><span><b>Welcome back.</b> Nothing was lost while you were away: you are still level ' + st.level + ' and your grove kept all its growth. ' +
+      (gap >= 3 ? 'Your first tick today earns a ' + C.xp.comeback + ' XP welcome-back bonus.' : 'One tick is enough to get going again.') + '</span></div>';
+  };
+  LD.more.remindersCard = function () {
+    var U = LD.ui, s = S.state.settings, r = s.remind;
+    var chk = function (key, label, small) {
+      return '<label class="sw"><span class="nm">' + label + '<small>' + small + '</small></span><input type="checkbox" data-remind="' + key + '"' + (r[key] ? ' checked' : '') + ' data-key="rm-' + key + '"></label>';
+    };
+    return '<section class="card"><header><h3>' + U.icon('clock') + ' Phone reminders</h3></header><p class="sub">A web page cannot send notifications by itself. This makes a calendar file with daily reminders: add it to your phone’s calendar once, and your phone does the reminding.</p>' +
+      chk('morning', 'Morning check-in', 'At your wake time, ' + U.fmtTime(s.wake) + '.') +
+      chk('winddown', 'Screens down', 'At ' + U.fmtTime(U.shift(s.bed, -s.screensDownMin)) + ', ' + s.screensDownMin + ' minutes before bed.') +
+      chk('evening', 'Evening check-in', 'For your steps and the evening list.') +
+      '<div class="fields" style="margin-top:10px"><div class="fld"><label for="rm-at">Evening check-in time</label><input id="rm-at" type="time" data-remind="eveningAt" value="' + r.eveningAt + '" data-key="rm-at"></div></div>' +
+      '<div class="btnrow" style="margin-top:12px"><button class="btn primary" data-act="ics"' + (LD.reminders.list().length ? '' : ' disabled') + '>Download reminders file</button></div>' +
+      '<p class="hint">Do this on your iPhone: open Grove there, press the button, open the file and choose Add All. Each reminder links back to Grove. If you change the times, download a new file and add it again.</p></section>';
+  };
+  LD.actions.ics = function () {
+    var blob = new Blob([LD.reminders.ics()], { type: 'text/calendar' }), a = document.createElement('a');
+    a.href = URL.createObjectURL(blob); a.download = 'grove-reminders.ics';
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(function () { URL.revokeObjectURL(a.href); }, 4000);
+    LD.ui.toast('Reminders file downloaded');
+  };
+  LD.onChange = function (el, d) {
+    if (d.remind === undefined) return false;
+    var r = S.state.settings.remind;
+    if (el.type === 'checkbox') r[d.remind] = el.checked;
+    else if (/^\d\d:\d\d$/.test(el.value)) r[d.remind] = el.value;
+    S.save(); LD.ui.render();
+    return true;
+  };
+  var longDay = { weekday: 'long', day: 'numeric', month: 'long' };
+  LD.more.safetyCopies = function () {
+    var list = S.snapshots();
+    return '<p class="grp">Safety copies</p>' + (list.length ?
+      '<p class="hint" style="margin-top:0">Grove keeps a copy of everything from the first time you open it each day, on this device. Restoring one puts things back as they were then.</p>' +
+      list.map(function (d) { return '<div class="sw"><span class="nm">Start of ' + D.fmt(d, longDay) + '</span><button class="btn sm" data-act="snap-restore" data-date="' + d + '">Restore</button></div>'; }).join('') :
+      '<p class="hint" style="margin-top:0">Once you have logged something, Grove keeps a copy from the start of each day on this device, in case anything ever goes wrong.</p>');
+  };
+  LD.actions['snap-restore'] = function (d) {
+    if (!confirm('Put everything back as it was at the start of ' + D.fmt(d.date, longDay) + '? Anything logged since then will be cleared.')) return;
+    if (S.restoreSnapshot(d.date)) { LD.ui.render(); LD.ui.toast('Restored'); }
+  };
+
   LD.onSubmit = function (kind, form, text) {
     if (kind !== 'add-meal') return false;
     var items = form.elements.items.value.split('\n').map(function (x) { return x.trim(); }).filter(Boolean);
