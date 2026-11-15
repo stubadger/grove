@@ -16,7 +16,7 @@
   --axis: #35553f;
   --serif: "Fraunces", "Palatino Linotype", "Book Antiqua", Palatino, Georgia, serif;
   /* a fine film grain, used on the grove picture and on cards */
-  --grain: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 .9 0 0 0 0 1 0 0 0 0 .9 0 0 0 .09 0'/%3E%3C/filter%3E%3Crect width='180' height='180' filter='url(%23n)'/%3E%3C/svg%3E");
+  --grain: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 .8 0 0 0 0 .9 0 0 0 0 .8 0 0 0 .045 0'/%3E%3C/filter%3E%3Crect width='180' height='180' filter='url(%23n)'/%3E%3C/svg%3E");
   --sans: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
   color-scheme: dark;
 }
@@ -65,7 +65,7 @@ button { cursor: pointer; }
 .sc { position: relative; overflow: hidden; }
 .sc .lay { position: absolute; left: 0; top: 0; display: block; pointer-events: none; }
 .sc::after { content: ""; position: absolute; inset: 0; pointer-events: none;   /* soft dark edges and a little grain */
-  background: radial-gradient(ellipse at 50% 55%, transparent 55%, rgba(4, 10, 7, .42) 100%), var(--grain); }
+  background: linear-gradient(180deg, rgba(4, 10, 7, .34), transparent 34%), radial-gradient(ellipse at 50% 55%, transparent 52%, rgba(4, 10, 7, .5) 100%), var(--grain); }
 .splant { position: absolute; display: block; text-decoration: none; text-align: center; outline: none; }
 .splant svg { display: block; }
 a.splant:hover svg, a.splant:focus-visible svg { filter: brightness(1.18) !important; }
@@ -391,9 +391,21 @@ textarea.code { width: 100%; margin-top: 8px; padding: 10px; border-radius: 10px
 .card > * { position: relative; z-index: 1; }
 .tile { background: var(--grain), var(--surface); }
 body { background-image: var(--grain),
-    radial-gradient(900px 500px at 12% -5%, rgba(106, 168, 79, .13), transparent 60%),
-    radial-gradient(800px 600px at 100% 30%, rgba(63, 125, 69, .10), transparent 60%),
-    radial-gradient(700px 500px at 30% 100%, rgba(167, 201, 87, .05), transparent 60%); }
+    radial-gradient(900px 500px at 12% -5%, rgba(106, 168, 79, .09), transparent 60%),
+    radial-gradient(800px 600px at 100% 30%, rgba(63, 125, 69, .07), transparent 60%),
+    radial-gradient(700px 500px at 30% 100%, rgba(167, 201, 87, .035), transparent 60%); }
+.hero { box-shadow: 0 12px 32px rgba(0, 0, 0, .35), inset 0 0 0 1px rgba(255, 255, 255, .03); }
+/* a finished card settles into the accent colour; the box you just ticked gives a small bounce */
+.card.complete { border-color: color-mix(in srgb, var(--accent2) 50%, var(--line)); }
+.card.complete::before { height: 3px; background: linear-gradient(90deg, transparent, var(--accent2) 20%, var(--accent) 50%, var(--accent2) 80%, transparent); }
+.card.complete > header .count { color: var(--accent); font-weight: 600; }
+.tick.pop .box { animation: tickpop .4s cubic-bezier(.2, 1.7, .4, 1); }
+.tick.pop { animation: tickglow .7s ease-out; }
+@keyframes tickpop { from { transform: scale(.55); } to { transform: scale(1); } }
+@keyframes tickglow { from { box-shadow: 0 0 0 0 color-mix(in srgb, var(--accent) 55%, transparent); } to { box-shadow: 0 0 0 12px transparent; } }
+.nofx .tick.pop, .nofx .tick.pop .box { animation: none; }
+.tick { transition: background .15s, border-color .15s, transform .08s; }
+.tick:active { transform: scale(.985); }
 h1, h2, h3, h4, .rank, .brand { font-optical-sizing: auto; }
 .section-title { display: flex; align-items: center; gap: 12px; }
 .section-title::after { content: ""; flex: 1; height: 1px; background: linear-gradient(90deg, var(--line2), transparent); }

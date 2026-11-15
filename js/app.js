@@ -113,8 +113,9 @@
     var hs = S.habits().filter(function (h) { return h.group === g.id; });
     if (!hs.length) return '';
     var done = hs.filter(function (h) { return S.day(date).checks[h.id]; }).length;
-    return '<section class="card' + (now ? ' now' : '') + '"><header><h3>' + icon(g.icon) + ' ' + g.name + '</h3>' + (now ? '<span class="tag">Now</span>' : '') +
-      '<span class="count">' + done + '/' + hs.length + '</span></header><div class="ticks">' + hs.map(function (h) { return tickRow(h, date); }).join('') + '</div></section>';
+    var all = done === hs.length;
+    return '<section class="card' + (now && !all ? ' now' : '') + (all ? ' complete' : '') + '"><header><h3>' + icon(g.icon) + ' ' + g.name + '</h3>' + (now && !all ? '<span class="tag">Now</span>' : '') +
+      '<span class="count">' + (all ? 'All done' : done + '/' + hs.length) + '</span></header><div class="ticks">' + hs.map(function (h) { return tickRow(h, date); }).join('') + '</div></section>';
   }
   function moveCard(date, isToday) {
     var s = S.state.settings, day = S.day(date), goal = day.steps ? G.goalFor(day) : s.stepGoal, a = LD.areaById.move;
@@ -598,6 +599,11 @@
     $app.innerHTML = banner() + html;
     mount();
     $tip.hidden = true;
+    if (view.pop) {   /* the box that was just ticked gives a small bounce */
+      var pe = $app.querySelector('[data-key="' + view.pop + '"]');
+      if (pe && pe.classList.contains('on')) pe.classList.add('pop');
+      view.pop = null;
+    }
     if (key) { var el = $app.querySelector('[data-key="' + key + '"]'); if (el) el.focus({ preventScroll: true }); }
     document.title = ({ journey: 'Journey', settings: 'Settings', grove: 'Grove', week: 'Week in review' }[r] || (a && S.isOn('areas', a) ? a.name : 'Today')) + ' · ' + S.name();
   }
@@ -653,8 +659,8 @@
     if (!el) return;
     var d = el.dataset;
     switch (d.act) {
-      case 'check': act(function () { S.toggleCheck(d.date, d.id); }, e); break;
-      case 'chore': act(function () { S.toggleChore(d.id, d.date); }, e); break;
+      case 'check': view.pop = d.key; act(function () { S.toggleCheck(d.date, d.id); }, e); break;
+      case 'chore': view.pop = d.key; act(function () { S.toggleChore(d.id, d.date); }, e); break;
       case 'workout': act(function () { S.setWorkout(d.date, d.kind); }, e); break;
       case 'task': act(function () { S.toggleTask(d.date, +d.i); }, e); break;
       case 'task-del': act(function () { S.removeTask(d.date, +d.i); }); break;

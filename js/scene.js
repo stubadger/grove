@@ -27,15 +27,16 @@
   }
 
   var PHASE = {
-    dawn:  { sky: ['#2b4a4b', '#ecd0a8'], haze: '#bfcbae', dim: 0.93, sun: '#ffe6bd', cloud: '#f7e3cf' },
-    day:   { sky: ['#2f6a59', '#e3f0be'], haze: '#c2dcb6', dim: 1,    sun: '#fff4c4', cloud: '#f6fbec' },
-    dusk:  { sky: ['#27314a', '#e6975a'], haze: '#a08878', dim: 0.82, sun: '#ffc98a', cloud: '#f0b596' },
+    /* kept deep and saturated on purpose: the owner found a paler version washed out and the sun too bright */
+    dawn:  { sky: ['#1f3b3b', '#d2ac80'], haze: '#93a587', dim: 0.9,  sun: '#f3cf9c', cloud: '#f7e3cf' },
+    day:   { sky: ['#1b4a40', '#9cc587'], haze: '#7fae80', dim: 1,    sun: '#f4dc98', cloud: '#f6fbec' },
+    dusk:  { sky: ['#1f263c', '#c97742'], haze: '#7c6862', dim: 0.8,  sun: '#eeaa6e', cloud: '#f0b596' },
     night: { sky: ['#050f0e', '#12332d'], haze: '#1d3d36', dim: 0.56, sun: '#e9edd8', cloud: '#27463f' }
   };
   var SEASON = {
-    spring: { name: 'Spring', pine: '#4a8a52', round: '#79b75f', ground: ['#4a8f48', '#33703a', '#24552c'], grass: '#7fc463', water: '#5fb0a6', accent: '#b5d56a', accent2: '#7fb069', fall: 'mote' },
-    summer: { name: 'Summer', pine: '#3a774a', round: '#4f9a4f', ground: ['#3d7e41', '#2a5f33', '#1c4526'], grass: '#62ac55', water: '#4aa39a', accent: '#a7c957', accent2: '#7fb069', fall: 'mote' },
-    autumn: { name: 'Autumn', pine: '#466f47', round: '#c9772e', ground: ['#6a6a31', '#4d4f24', '#383a1a'], grass: '#9a9a40', water: '#5a9a8c', accent: '#e8b45a', accent2: '#c98a3a', fall: 'leaf' },
+    spring: { name: 'Spring', pine: '#3a7a47', round: '#5fa24f', ground: ['#3b7f40', '#296132', '#1c4826'], grass: '#6bb354', water: '#3f95a0', accent: '#b5d56a', accent2: '#7fb069', fall: 'mote' },
+    summer: { name: 'Summer', pine: '#2f6940', round: '#458c46', ground: ['#33733a', '#23572d', '#173f21'], grass: '#569f4b', water: '#368d8f', accent: '#a7c957', accent2: '#7fb069', fall: 'mote' },
+    autumn: { name: 'Autumn', pine: '#3b6340', round: '#bd6a24', ground: ['#5c5d2a', '#43451e', '#313316'], grass: '#888836', water: '#478a80', accent: '#e8b45a', accent2: '#c98a3a', fall: 'leaf' },
     winter: { name: 'Winter', pine: '#487268', round: '#93a3a1', ground: ['#e1eaec', '#c3d1d6', '#a8bac0'], grass: '#a9bcbc', water: '#cfe3ea', accent: '#a9d3e0', accent2: '#7fb3c4', fall: 'snow', snow: true }
   };
   P.seasons = SEASON;
@@ -359,29 +360,29 @@
     var sunCol = sky.sun.alt < 14 ? mix('#ffab62', ph.sun, Math.max(0, sky.sun.alt) / 14) : ph.sun;
 
     /* 1. sky: the sun sits where it really is, low and orange near the horizon, and the moon shows its real phase */
-    var a = svgOpen('s-sky') + '<defs><linearGradient id="sky-' + phase + '" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="' + ph.sky[0] + '"/><stop offset=".72" stop-color="' + mix(ph.sky[0], ph.sky[1], 0.82) + '"/><stop offset="1" stop-color="' + ph.sky[1] + '"/></linearGradient>' +
-      '<radialGradient id="glow"><stop offset="0" stop-color="' + sunCol + '" stop-opacity=".8"/><stop offset="1" stop-color="' + sunCol + '" stop-opacity="0"/></radialGradient>' +
+    var a = svgOpen('s-sky') + '<defs><linearGradient id="sky-' + phase + '" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="' + ph.sky[0] + '"/><stop offset=".6" stop-color="' + mix(ph.sky[0], ph.sky[1], 0.55) + '"/><stop offset="1" stop-color="' + ph.sky[1] + '"/></linearGradient>' +
+      '<radialGradient id="glow"><stop offset="0" stop-color="' + sunCol + '" stop-opacity=".46"/><stop offset="1" stop-color="' + sunCol + '" stop-opacity="0"/></radialGradient>' +
       '<radialGradient id="mglow"><stop offset="0" stop-color="#e9edd8" stop-opacity=".6"/><stop offset="1" stop-color="#e9edd8" stop-opacity="0"/></radialGradient></defs>' +
       '<rect width="' + w + '" height="' + h + '" fill="url(#sky-' + phase + ')"/>';
     if (phase === 'night') for (i = 0; i < Math.round(w / 14); i++) a += '<circle cx="' + f(r() * w) + '" cy="' + f(r() * hz * 0.9) + '" r="' + f(0.5 + r() * 0.8) + '" fill="#e9edd8" opacity="' + f(0.3 + r() * 0.6) + '"/>';
-    if (sky.sun.alt > -9 && sky.sun.alt < 14) a += '<ellipse cx="' + f(sx) + '" cy="' + f(hz + 4) + '" rx="' + f(w * 0.3) + '" ry="' + f((hz - top) * 0.55) + '" fill="url(#glow)" opacity=".6"/>';
-    if (sunUp) a += '<circle cx="' + f(sx) + '" cy="' + f(sy) + '" r="' + (o.banner ? 72 : 104) + '" fill="url(#glow)"/><circle cx="' + f(sx) + '" cy="' + f(sy) + '" r="13" fill="' + sunCol + '"/>';
+    if (sky.sun.alt > -9 && sky.sun.alt < 14) a += '<ellipse cx="' + f(sx) + '" cy="' + f(hz + 4) + '" rx="' + f(w * 0.3) + '" ry="' + f((hz - top) * 0.5) + '" fill="url(#glow)" opacity=".5"/>';
+    if (sunUp) a += '<circle cx="' + f(sx) + '" cy="' + f(sy) + '" r="' + (o.banner ? 50 : 70) + '" fill="url(#glow)"/><circle cx="' + f(sx) + '" cy="' + f(sy) + '" r="10.5" fill="' + sunCol + '"/>';
     if (sky.moon) {
       var night = phase === 'night', mlit = (1 - Math.cos(2 * Math.PI * sky.moon.p)) / 2;
       a += (night ? '<circle cx="' + f(mx) + '" cy="' + f(my) + '" r="54" fill="url(#mglow)" opacity="' + f(0.25 + 0.5 * mlit) + '"/>' : '') +
         '<g opacity="' + (phase === 'day' ? 0.5 : night ? 1 : 0.8) + '">' + moonShape(mx, my, 12, sky.moon.p, sky.south, '#eef0df', night ? mix(ph.sky[0], '#ffffff', 0.12) : null) + '</g>';
     }
-    a += ridge(w, fb + 6, o.big ? 120 : 64, rng(5), mix(mix(S.pine, ph.haze, 0.82), ph.sky[1], 0.35), 6) +
-         ridge(w, fb + 10, o.big ? 74 : 40, rng(9), mix(mix(S.pine, ph.haze, 0.7), ph.sky[1], 0.18), 9);
+    a += ridge(w, fb + 6, o.big ? 120 : 64, rng(5), shade(mix(mix(S.pine, ph.haze, 0.62), ph.sky[1], 0.22)), 6) +
+         ridge(w, fb + 10, o.big ? 74 : 40, rng(9), shade(mix(mix(S.pine, ph.haze, 0.44), ph.sky[1], 0.1)), 9);
     html += a + '</svg>';
 
     /* 2. clouds: big ones high up, small ones far off near the horizon, lit from above by day and from below at dusk */
-    var cl = { day: ['#ffffff', mix('#ffffff', ph.sky[0], 0.34)], dawn: ['#fff5e4', mix('#e9b99c', ph.sky[0], 0.25)], dusk: [mix('#77688a', ph.sky[0], 0.3), '#f4a86c'], night: ['#34524c', '#182d29'] }[phase];
+    var cl = { day: ['#eaf1df', mix('#eaf1df', ph.sky[0], 0.5)], dawn: ['#f1dcc0', mix('#d9a686', ph.sky[0], 0.35)], dusk: [mix('#77688a', ph.sky[0], 0.3), '#f4a86c'], night: ['#34524c', '#182d29'] }[phase];
     var nc = o.banner ? 2 : Math.max(3, Math.round(w / 240));
     for (i = 0; i < nc; i++) {
       var far = i % 3 === 2, cs = far ? 0.36 + r() * 0.22 : 0.7 + r() * 0.75, dur = (far ? 520 : 300) / (0.5 + cs * 0.5);
       var cyy = far ? hz - 30 - r() * 22 : top * 0.3 + r() * (hz - top) * 0.4;
-      html += '<div class="scloud' + (o.still ? ' still' : '') + '" style="top:' + f(cyy) + 'px;--w:' + w + 'px;--x:' + f(r() * w * 0.8) + 'px;opacity:' + (far ? 0.72 : phase === 'night' ? 0.7 : 0.94) +
+      html += '<div class="scloud' + (o.still ? ' still' : '') + '" style="top:' + f(cyy) + 'px;--w:' + w + 'px;--x:' + f(r() * w * 0.8) + 'px;opacity:' + (far ? 0.6 : phase === 'night' ? 0.7 : 0.84) +
         ';animation-duration:' + f(dur) + 's;animation-delay:' + at(dur, r() * dur) + '">' + cloudSVG(rng(100 + i), cs, cl[0], cl[1], phase) + '</div>';
     }
 
@@ -393,23 +394,24 @@
       return { pine: p, pineLit: mix(p, ph.sun, 0.32 * dim), round: rd, roundLit: mix(rd, ph.sun, 0.36 * dim), trunk: mix(p, '#1c120a', 0.45),
                hill: mix(p, S.snow ? shade('#c6d5da') : p, 0.5), snow: mix(snow, ph.haze, hazeT * 0.5) };
     };
-    var g1 = shade(S.ground[0]), g2 = shade(S.ground[1]), g3 = shade(S.ground[2]), near = layer(0.1, 0.3), cTop = nb + 6, water = shade(mix(S.water, ph.sky[1], 0.4));
+    var g1 = shade(S.ground[0]), g2 = shade(S.ground[1]), g3 = shade(S.ground[2]), near = layer(0.03, 0.38), cTop = nb + 6, water = shade(mix(S.water, ph.sky[1], 0.16));
     var b = svgOpen('s-forest') + '<defs>' + P.defs +
       '<radialGradient id="lamp"><stop offset="0" stop-color="#ffdf8a" stop-opacity=".8"/><stop offset="1" stop-color="#ffdf8a" stop-opacity="0"/></radialGradient>' +
-      '<linearGradient id="mist" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="' + ph.haze + '" stop-opacity="0"/><stop offset="1" stop-color="' + mix(ph.haze, '#ffffff', 0.35) + '" stop-opacity=".5"/></linearGradient>' +
-      '<linearGradient id="ray" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="' + sunCol + '" stop-opacity=".26"/><stop offset="1" stop-color="' + sunCol + '" stop-opacity="0"/></linearGradient>' +
-      '<linearGradient id="crk" gradientUnits="userSpaceOnUse" x1="0" y1="' + cTop + '" x2="0" y2="' + gy + '"><stop offset="0" stop-color="' + mix(water, near.pine, 0.55) + '"/><stop offset="1" stop-color="' + mix(water, '#ffffff', 0.12) + '"/></linearGradient>' +
-      '<radialGradient id="clr" gradientUnits="userSpaceOnUse" cx="' + f(lightX == null ? w / 2 : lightX) + '" cy="' + gy + '" r="' + f(w * 0.5) + '"><stop offset="0" stop-color="' + mix(g1, ph.sun, lit ? 0.12 : 0.3) + '"/><stop offset="1" stop-color="' + g1 + '"/></radialGradient></defs>';
-    b += forest(w, fb, o.big ? 24 : 16, o.big ? 52 : 34, o.big ? 15 : 11, rng(11), layer(0.66, 0), S, 0, lightX) +
+      '<linearGradient id="mist" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="' + ph.haze + '" stop-opacity="0"/><stop offset="1" stop-color="' + mix(ph.haze, '#ffffff', 0.12) + '" stop-opacity=".3"/></linearGradient>' +
+      '<linearGradient id="shd" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#04100a" stop-opacity="0"/><stop offset="1" stop-color="#04100a" stop-opacity=".5"/></linearGradient>' +
+      '<linearGradient id="ray" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="' + sunCol + '" stop-opacity=".15"/><stop offset="1" stop-color="' + sunCol + '" stop-opacity="0"/></linearGradient>' +
+      '<linearGradient id="crk" gradientUnits="userSpaceOnUse" x1="0" y1="' + cTop + '" x2="0" y2="' + gy + '"><stop offset="0" stop-color="' + mix(water, near.pine, 0.55) + '"/><stop offset="1" stop-color="' + mix(water, '#ffffff', 0.05) + '"/></linearGradient>' +
+      '<radialGradient id="clr" gradientUnits="userSpaceOnUse" cx="' + f(lightX == null ? w / 2 : lightX) + '" cy="' + gy + '" r="' + f(w * 0.5) + '"><stop offset="0" stop-color="' + mix(g1, ph.sun, lit ? 0.07 : 0.17) + '"/><stop offset="1" stop-color="' + g1 + '"/></radialGradient></defs>';
+    b += forest(w, fb, o.big ? 24 : 16, o.big ? 52 : 34, o.big ? 15 : 11, rng(11), layer(0.5, 0.06), S, 0, lightX) +
          '<rect x="0" y="' + (fb - 30) + '" width="' + w + '" height="' + (mb - fb + 34) + '" fill="url(#mist)"/>' +
-         forest(w, mb, o.big ? 44 : 28, o.big ? 86 : 56, o.big ? 26 : 19, rng(21), layer(0.36, 0.08), S, 1, lightX);
+         forest(w, mb, o.big ? 44 : 28, o.big ? 86 : 56, o.big ? 26 : 19, rng(21), layer(0.24, 0.2), S, 1, lightX);
     if (sunUp && sy < fb + 2 - (o.big ? 120 : 64)) {   /* shafts of light, only once the sun has cleared the mountains */
       [[-0.26, 0.035], [-0.09, 0.02], [0.08, 0.03], [0.27, 0.04]].forEach(function (ry) {
         var bx = sx + ry[0] * w;
         b += '<path d="M' + f(sx - 4) + ' ' + f(sy) + 'L' + f(bx - w * ry[1]) + ' ' + (gy + 8) + 'H' + f(bx + w * ry[1]) + 'L' + f(sx + 4) + ' ' + f(sy) + 'Z" fill="url(#ray)"/>';
       });
     }
-    b += '<rect x="0" y="' + (mb - 28) + '" width="' + w + '" height="' + (nb - mb + 30) + '" fill="url(#mist)" opacity=".8"/>' +
+    b += '<rect x="0" y="' + (mb - 28) + '" width="' + w + '" height="' + (nb - mb + 30) + '" fill="url(#mist)" opacity=".55"/>' +
          forest(w, nb, o.big ? 70 : 44, o.big ? 150 : 92, o.big ? 46 : 34, rng(31), near, S, 2, lightX);
 
     /* where things stand: one slot per plant, gaps between them for everything else */
@@ -434,7 +436,7 @@
     var edge = layerOf('edge', cTop - 1, k), back = layerOf('back', gy - 2, k * 0.96), front = layerOf('front', gy + 3, k * 1.04);
 
     /* the forest edge: things standing among the trees, then a line of undergrowth along the far bank */
-    b += edge;
+    b += '<rect x="0" y="' + (nb - 22) + '" width="' + w + '" height="24" fill="url(#shd)"/>' + edge;   /* shade gathers under the near trees */
     var under = '', underHi = '';
     for (x = -6; x < w + 10; x += 10 + r() * 16) { var br = 7 + r() * 9; under += '<circle cx="' + f(x) + '" cy="' + f(nb + 1) + '" r="' + f(br) + '"/>'; if (lightX != null && r() < 0.5) underHi += '<circle cx="' + f(x + (lightX < x ? -1 : 1) * br * 0.25) + '" cy="' + f(nb - br * 0.4) + '" r="' + f(br * 0.45) + '"/>'; }
     b += '<g fill="' + near.round + '">' + under + '</g><g fill="' + near.roundLit + '" opacity=".45">' + underHi + '</g>';
@@ -443,7 +445,7 @@
     b += '<path d="M0 ' + cTop + 'q' + f(w / 8) + ' -2.4 ' + f(w / 4) + ' 0t' + f(w / 4) + ' 0t' + f(w / 4) + ' 0t' + f(w / 4) + ' 0V' + (gy + 6) + 'H0Z" fill="url(#crk)"/>';
     var gl = '';
     for (x = 4 + r() * 20; x < w; x += 16 + r() * 40) gl += 'M' + f(x) + ' ' + f(cTop + 2.5 + r() * Math.max(1, gy - cTop - 9)) + 'h' + f(4 + r() * 9);
-    b += '<path d="' + gl + '" stroke="#fff" stroke-width="1" stroke-linecap="round" opacity="' + (phase === 'night' ? 0.22 : 0.5) + '" fill="none"/>';
+    b += '<path d="' + gl + '" stroke="#fff" stroke-width="1" stroke-linecap="round" opacity="' + (phase === 'night' ? 0.2 : 0.38) + '" fill="none"/>';
     if (lightX != null) b += '<ellipse cx="' + f(lightX) + '" cy="' + (cTop + 4) + '" rx="' + f(w * 0.07) + '" ry="3.2" fill="' + (sunUp ? sunCol : '#e9edd8') + '" opacity="' + (sunUp ? 0.5 : 0.3) + '"/>';
     for (i = 0; i < Math.round(w / 230); i++) { x = r() * w; var rr = 4 + r() * 4; b += '<ellipse cx="' + f(x) + '" cy="' + (cTop + 5) + '" rx="' + f(rr) + '" ry="' + f(rr * 0.45) + '" fill="' + shade('#66736a') + '"/><ellipse cx="' + f(x - 1) + '" cy="' + f(cTop + 4.2) + '" rx="' + f(rr * 0.6) + '" ry="' + f(rr * 0.22) + '" fill="' + shade('#5d8a3c') + '"/>'; }
 
@@ -452,7 +454,7 @@
     b += '<path d="' + edgePath + 'V' + h + 'H0Z" fill="url(#clr)"/><path d="' + edgePath + '" stroke="' + mix(g1, '#ffffff', 0.3) + '" stroke-width="1.4" fill="none" opacity=".45"/>' +
          '<path d="M0 ' + (gy + 6) + 'Q' + f(w * 0.3) + ' ' + gy + ' ' + f(w * 0.6) + ' ' + (gy + 6) + 'T' + w + ' ' + (gy + 3) + 'V' + h + 'H0Z" fill="' + g2 + '" opacity=".8"/>' +
          '<path d="M0 ' + (gy + 24) + 'Q' + f(w * 0.35) + ' ' + (gy + 16) + ' ' + f(w * 0.7) + ' ' + (gy + 24) + 'T' + w + ' ' + (gy + 20) + 'V' + h + 'H0Z" fill="' + g3 + '"/>';
-    if (phase !== 'night') for (i = 0; i < Math.round(w / 150); i++) b += '<ellipse cx="' + f(r() * w) + '" cy="' + f(gy + 2 + r() * 12) + '" rx="' + f(30 + r() * 46) + '" ry="' + f(3 + r() * 3) + '" fill="' + ph.sun + '" opacity="' + f(0.07 + r() * 0.08) + '"/>';
+    if (phase !== 'night') for (i = 0; i < Math.round(w / 150); i++) b += '<ellipse cx="' + f(r() * w) + '" cy="' + f(gy + 2 + r() * 12) + '" rx="' + f(30 + r() * 46) + '" ry="' + f(3 + r() * 3) + '" fill="' + ph.sun + '" opacity="' + f(0.04 + r() * 0.05) + '"/>';
     b += back;
     /* grass, flowers and small finds, kept clear of the plants and decorations */
     var clear = function (px) { return slots.every(function (s2) { return Math.abs(s2 - px) > 46 * k; }) && taken.every(function (t2) { return Math.abs(t2 - px) > 34 * k; }); };
