@@ -14,7 +14,7 @@ window.LD = window.LD || {};
 LD.config = {
   appName: 'Grove',
   /* Shown at the bottom of Settings so it is easy to tell which version a device is running. Change it with every publish. */
-  version: '16 November 2026, a',
+  version: '16 November 2026, b',
   /* Where the published copy lives. Used for the link inside phone reminders. */
   siteUrl: 'https://stubadger.github.io/grove/',
 
@@ -40,6 +40,7 @@ LD.config = {
     stepsGoalBonus: 10,
     task: 10,
     comeback: 30,      // bonus on the first day back after three or more days away
+    checkin: 5,        // each of the two daily check-in taps (energy, mood)
     base: 50,          // overall level curve: XP to reach level L = base*(L-1)*L
     areaBase: 20       // skill level curve
   },

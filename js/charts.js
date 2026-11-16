@@ -182,8 +182,10 @@
       var y = top + ri * rowH, lab = r.label.length > maxCh ? r.label.slice(0, maxCh - 1) + '…' : r.label;
       s += '<text class="rowl" x="0" y="' + (y + rowH / 2 + 4) + '"><title>' + esc(r.label) + '</title>' + esc(lab) + '</text>';
       r.cells.forEach(function (c, i) {
-        s += '<rect class="cell" data-tip="' + tip(D.fmt(o.dates[i]), [[c ? 'Done' : 'Not ticked', r.label, c ? o.color : null]]) +
-             '" x="' + (labW + i * step) + '" y="' + f(y + (rowH - cell) / 2) + '" width="' + cell + '" height="' + cell + '" rx="3" fill="' + (c ? o.color : CH.ramp[0]) + '"/>';
+        /* null = the habit does not apply that day: drawn as an empty outline */
+        s += '<rect class="cell" data-tip="' + tip(D.fmt(o.dates[i]), [[c == null ? 'Not a day for this' : c ? 'Done' : 'Not ticked', r.label, c ? o.color : null]]) +
+             '" x="' + (labW + i * step) + '" y="' + f(y + (rowH - cell) / 2) + '" width="' + cell + '" height="' + cell + '" rx="3" ' +
+             (c == null ? 'fill="transparent" stroke="' + CH.ramp[0] + '" stroke-width="1"' : 'fill="' + (c ? o.color : CH.ramp[0]) + '"') + '/>';
       });
     });
     return s + '</svg>';
@@ -240,6 +242,81 @@
       s += '<line class="bl" x1="' + f(X(t[1])) + '" x2="' + f(X(t[1])) + '" y1="' + (y + bh + 3) + '" y2="' + (y + bh + 8) + '"/>' +
            '<text class="ax" x="' + f(X(t[1])) + '" y="' + (y + bh + 22) + '" text-anchor="' + (i === 0 ? 'start' : i === a.length - 1 ? 'end' : 'middle') + '">' + t[0] + '</text>';
     });
+    return s + '</svg>';
+  };
+
+  /* Several lines on one axis. o: series[{name,color,values[] (null = gap)}], labels[], tips[], max, tickN, fmt, axisFmt, height */
+  CH.lines = function (w, o) {
+    var h = o.height || 200, m = { l: 40, r: 18, t: 18, b: 24 }, pw = w - m.l - m.r, ph = h - m.t - m.b, n = o.labels.length, dm = 0;
+    o.series.forEach(function (sr) { sr.values.forEach(function (v) { if (v > dm) dm = v; }); });
+    var max = o.max || niceMax(dm * 1.1 || 1), y0 = m.t + ph, fmt = o.fmt || num;
+    var X = function (i) { return m.l + (n === 1 ? pw / 2 : pw * i / (n - 1)); }, Y = function (v) { return y0 - (v / max) * ph; };
+    var s = open(w, h, o.name) + yAxis(m, pw, ph, max, o.tickN || 4, o.axisFmt || axisFmt(max)), i;
+    o.series.forEach(function (sr) {
+      var d = '', run = false, last = -1, dots = '', count = 0;
+      sr.values.forEach(function (v, k) {
+        if (v == null) { run = false; return; }
+        d += (run ? 'L' : 'M') + f(X(k)) + ' ' + f(Y(v)); run = true; last = k; count++;
+        dots += '<circle cx="' + f(X(k)) + '" cy="' + f(Y(v)) + '" r="2.4" fill="' + sr.color + '"/>';
+      });
+      if (d) s += '<path d="' + d + '" fill="none" stroke="' + sr.color + '" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>';
+      if (count <= 45) s += dots;   /* with few points, mark each one so single days still show */
+      if (last >= 0) s += '<circle class="dot" cx="' + f(X(last)) + '" cy="' + f(Y(sr.values[last])) + '" r="4" fill="' + sr.color + '"/>';
+    });
+    var band = n > 1 ? pw / (n - 1) : pw;
+    for (i = 0; i < n; i++) {
+      var hx = Math.max(m.l, X(i) - band / 2), hw = Math.min(m.l + pw, X(i) + band / 2) - hx, marks = '';
+      var rows = o.series.map(function (sr) {
+        var v = sr.values[i];
+        if (v != null) marks += '<circle class="xh dot" cx="' + f(X(i)) + '" cy="' + f(Y(v)) + '" r="4" fill="' + sr.color + '"/>';
+        return [v == null ? 'No entry' : fmt(v), sr.name, sr.color];
+      });
+      s += '<g class="col" tabindex="0" data-tip="' + tip(o.tips ? o.tips[i] : o.labels[i], rows) + '"><rect class="hit" x="' + f(hx) + '" y="' + m.t + '" width="' + f(hw) + '" height="' + ph + '"/>' +
+           '<line class="xh" x1="' + f(X(i)) + '" x2="' + f(X(i)) + '" y1="' + m.t + '" y2="' + y0 + '"/>' + marks + '</g>';
+    }
+    return s + xLabels(m, ph, o.labels, X, pw) + '</svg>';
+  };
+
+  /* Bars side by side for two or three series. o: series[{name,color,values[]}], labels[], tips[], max, tickN, unit, height */
+  CH.groups = function (w, o) {
+    var h = o.height || 200, m = { l: 40, r: 10, t: 16, b: 24 }, pw = w - m.l - m.r, ph = h - m.t - m.b, n = o.labels.length, ns = o.series.length, dm = 0;
+    o.series.forEach(function (sr) { sr.values.forEach(function (v) { if (v > dm) dm = v; }); });
+    var max = o.max || niceMax(dm * 1.08 || 1), y0 = m.t + ph, band = pw / n, bw = Math.max(2, Math.min(13, (band - 4) / ns - 2)), gw = ns * bw + (ns - 1) * 2;
+    var s = open(w, h, o.name) + yAxis(m, pw, ph, max, o.tickN || 4, axisFmt(max));
+    for (var i = 0; i < n; i++) {
+      var x0 = m.l + i * band + (band - gw) / 2, bars = '';
+      var rows = o.series.map(function (sr, k) {
+        var v = sr.values[i];
+        if (v > 0) bars += '<path class="mark" fill="' + sr.color + '" d="' + roundTop(x0 + k * (bw + 2), y0 - (v / max) * ph, bw, y0, 3) + '"/>';
+        return [v == null ? 'No entry' : num(v) + (o.unit || ''), sr.name, sr.color];
+      });
+      s += '<g class="col" tabindex="0" data-tip="' + tip(o.tips ? o.tips[i] : o.labels[i], rows) + '"><rect class="hit" x="' + f(m.l + i * band) + '" y="' + m.t + '" width="' + f(band) + '" height="' + ph + '"/>' + bars + '</g>';
+    }
+    return s + xLabels(m, ph, o.labels, function (k) { return m.l + k * band + band / 2; }, pw) + '</svg>';
+  };
+
+  /* Radar: one shape over spokes, each spoke running from 0 at the centre to 100% at the rim. o: axes[{name, v (0..1)}], color, name */
+  CH.radar = function (w, o) {
+    var size = Math.min(w, 320), h = size, cx = w / 2, cy = h / 2 + 2, R = size / 2 - 46, n = o.axes.length, i, s = open(w, h, o.name), shape = '';
+    var pt = function (k, v) { var a = -Math.PI / 2 + k * 2 * Math.PI / n; return [cx + Math.cos(a) * R * v, cy + Math.sin(a) * R * v]; };
+    [0.25, 0.5, 0.75, 1].forEach(function (ring) {
+      var d = '';
+      for (i = 0; i < n; i++) { var p = pt(i, ring); d += (i ? 'L' : 'M') + f(p[0]) + ' ' + f(p[1]); }
+      s += '<path d="' + d + 'Z" fill="none" class="' + (ring === 1 ? 'bl' : 'gl') + '"/>';
+    });
+    s += '<text class="ax" x="' + f(cx + 4) + '" y="' + f(cy - R * 0.5 + 3) + '">50%</text><text class="ax" x="' + f(cx + 4) + '" y="' + f(cy - R + 12) + '">100%</text>';
+    for (i = 0; i < n; i++) {
+      var e = pt(i, 1), l = pt(i, 1.2), v = Math.max(0, Math.min(1, o.axes[i].v || 0)), q = pt(i, v), cs = Math.cos(-Math.PI / 2 + i * 2 * Math.PI / n);
+      s += '<line class="gl" x1="' + f(cx) + '" y1="' + f(cy) + '" x2="' + f(e[0]) + '" y2="' + f(e[1]) + '"/>' +
+           '<text class="rowl" x="' + f(l[0]) + '" y="' + f(l[1] + 4) + '" text-anchor="' + (Math.abs(cs) < 0.3 ? 'middle' : cs > 0 ? 'start' : 'end') + '">' + esc(o.axes[i].name) + '</text>';
+      shape += (i ? 'L' : 'M') + f(q[0]) + ' ' + f(q[1]);
+    }
+    s += '<path d="' + shape + 'Z" fill="' + o.color + '" fill-opacity=".2" stroke="' + o.color + '" stroke-width="2" stroke-linejoin="round"/>';
+    for (i = 0; i < n; i++) {
+      var d2 = pt(i, Math.max(0, Math.min(1, o.axes[i].v || 0)));
+      s += '<g class="pt" tabindex="0" data-tip="' + tip(o.axes[i].name, [[Math.round((o.axes[i].v || 0) * 100) + '%', 'of its list done', o.color]]) + '"><circle class="hit" cx="' + f(d2[0]) + '" cy="' + f(d2[1]) + '" r="13"/>' +
+           '<circle class="dot mark" cx="' + f(d2[0]) + '" cy="' + f(d2[1]) + '" r="4.5" fill="' + o.color + '"/></g>';
+    }
     return s + '</svg>';
   };
 })();

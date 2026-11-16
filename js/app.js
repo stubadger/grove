@@ -69,7 +69,7 @@
       .concat([{ r: 'journey', n: 'Journey', i: 'peak' }, { r: 'settings', n: 'Settings', i: 'sliders' }]);
     var p = G.progress(st.total, C.xp.base);
     return '<div class="navin"><a class="brand" href="#/">' + icon('tree') + '<span>' + esc(S.name()) + '</span></a><nav aria-label="Sections">' +
-      items.map(function (it) { return '<a href="#/' + it.r + '"' + (it.r === r ? ' class="on" aria-current="page"' : '') + '>' + icon(it.i) + '<span>' + it.n + '</span></a>'; }).join('') +
+      items.map(function (it) { return '<a href="#/' + it.r + '"' + (it.r === r || (it.r === 'journey' && (r === 'stats' || r === 'week')) ? ' class="on" aria-current="page"' : '') + '>' + icon(it.i) + '<span>' + it.n + '</span></a>'; }).join('') +
       '</nav>' + syncDot() + '<a class="lvchip" href="#/journey" aria-label="Level ' + p.level + ', open Journey"><b>Lv ' + p.level + '</b><span class="mini"><i style="width:' + (p.pct * 100).toFixed(0) + '%"></i></span></a></div>';
   }
   /* small cloud in the top bar once sync is on: shows whether the last sync worked */
@@ -104,7 +104,7 @@
       '<div class="xpnum">' + num(p.into) + ' / ' + num(p.need) + ' XP to level ' + (p.level + 1) + (todayXP ? ' · +' + todayXP + ' today' : '') + '</div></div></a></section>';
   }
   function lastNight(date) {
-    var y = D.add(date, -1), hs = S.habits().filter(function (h) { return h.late; });
+    var y = D.add(date, -1), hs = S.habitsFor(y).filter(function (h) { return h.late; });
     var ui = S.state.settings.ui, needSteps = S.isOn('areas', LD.areaById.move) && !S.day(y).steps;   /* steps are easy to forget at night */
     if (!ui.lastNight || (!hs.length && !needSteps) || D.hour() >= ui.lastNightUntil || y < S.state.startDate) return '';
     return '<section class="card"><header><h3>' + icon('moon') + ' Last night</h3><span class="count">' + D.fmt(y, { weekday: 'short' }) + '</span></header>' +
@@ -118,7 +118,7 @@
     return C.groups.map(function (g) { return '<option value="' + g.id + '"' + (g.id === sel ? ' selected' : '') + '>' + g.name + '</option>'; }).join('');
   }
   function groupCard(g, date, now, isToday) {
-    var hs = S.habits().filter(function (h) { return h.group === g.id; });
+    var hs = S.habitsFor(date).filter(function (h) { return h.group === g.id; });
     if (!hs.length) return '';
     var done = hs.filter(function (h) { return S.day(date).checks[h.id]; }).length;
     var all = done === hs.length;
@@ -206,7 +206,7 @@
       if (g.id === 'day') cards += moveCard(date, isToday);
       cards += groupCard(g, date, now, isToday);
     });
-    return welcome + (isToday ? LD.more.welcomeBack(st) + LD.more.recapBanner() : '') + hero(st, date, isToday) + '<div class="cards flow">' + (isToday ? lastNight(date) : '') + cards + choreCard(date) + taskCard(date) + (isToday ? LD.more.questsCard() : '') + '</div>' +
+    return welcome + (isToday ? LD.more.welcomeBack(st) + LD.more.recapBanner() : '') + hero(st, date, isToday) + '<div class="cards flow">' + (isToday ? lastNight(date) : '') + cards + choreCard(date) + taskCard(date) + (S.state.settings.ui.checkin ? LD.more.feelCard(date) : '') + (isToday ? LD.more.questsCard() : '') + '</div>' +
       '<h2 class="section-title">How it is going</h2><div class="cards">' + weekSection(date) + canopyCard(st) + '</div>';
   }
 
@@ -223,8 +223,9 @@
   function habitStats(a) {
     var sp = span28(), dates = D.range(D.today(), sp);
     return S.habits(a.id).map(function (h) {
-      var n = dates.filter(function (d) { return S.day(d).checks[h.id]; }).length;
-      return { h: h, n: n, span: sp, rate: n / sp };
+      /* only the days the habit applies on are counted */
+      var on = dates.filter(function (d) { return S.scheduled(h, d); }), n = on.filter(function (d) { return S.day(d).checks[h.id]; }).length;
+      return { h: h, n: n, span: on.length, rate: on.length ? n / on.length : 0 };
     });
   }
   function weekScore(a, ws) {
@@ -241,7 +242,7 @@
     out += tile('This week', w ? Math.round(w.done) + ' <small>of ' + w.of + '</small>' : '–',
       delta == null ? 'Ticks so far' : delta > 0 ? '▲ ' + delta + ' points on last week' : delta < 0 ? '▼ ' + (-delta) + ' points on last week' : 'Level with last week', delta > 0);
     if (hs.length) {
-      out += tile('Last ' + hs[0].span + ' days', pct(avg(hs.map(function (x) { return x.rate; }))), 'Average across these habits');
+      out += tile('Last ' + span28() + ' days', pct(avg(hs.map(function (x) { return x.rate; }))), 'Average across these habits');
       var sorted = hs.slice().sort(function (x, y) { return y.rate - x.rate; });
       out += tile('Strongest habit', pct(sorted[0].rate), esc(txt(sorted[0].h)));
       if (sorted.length > 1) out += tile('Most room to grow', pct(sorted[sorted.length - 1].rate), esc(txt(sorted[sorted.length - 1].h)));
@@ -251,11 +252,11 @@
   function habitGridCard(a) {
     var dates = D.range(D.today(), 28), hs = S.habits(a.id);
     if (!hs.length) return '';
-    var rows = hs.map(function (h) { return { label: txt(h), cells: dates.map(function (d) { return !!S.day(d).checks[h.id]; }) }; });
+    var rows = hs.map(function (h) { return { label: txt(h), cells: dates.map(function (d) { return S.scheduled(h, d) ? !!S.day(d).checks[h.id] : null; }) }; });
     return chartCard('Last four weeks', 'One row per habit, one square per day.', function (w) {
       return CH.grid(w, { name: a.name + ' habits, last 28 days', rows: rows, dates: dates, color: a.color });
     }, { head: ['Day'].concat(rows.map(function (r) { return r.label; })), rows: dates.slice().reverse().map(function (d, i) {
-      return [D.fmt(d)].concat(rows.map(function (r) { return r.cells[27 - i] ? 'Done' : '–'; }));
+      return [D.fmt(d)].concat(rows.map(function (r) { var c = r.cells[27 - i]; return c == null ? 'Not that day' : c ? 'Done' : '–'; }));
     }) }, '', 'span2');
   }
   function trendCard(a) {
@@ -271,7 +272,7 @@
   function ratesCard(a) {
     var hs = habitStats(a);
     if (!hs.length) return '';
-    return '<section class="card"><header><h3>Habit by habit</h3></header><p class="sub">Days ticked in the last ' + hs[0].span + '.</p><div class="rates" style="--c:' + a.color + '">' +
+    return '<section class="card"><header><h3>Habit by habit</h3></header><p class="sub">Days ticked in the last ' + span28() + ', out of the days each habit applies.</p><div class="rates" style="--c:' + a.color + '">' +
       hs.map(function (x) {
         return '<div class="rate"><span class="nm">' + esc(txt(x.h)) + '</span><div class="meter" role="img" aria-label="' + x.n + ' of ' + x.span + ' days"><i style="width:' + (x.rate * 100).toFixed(0) + '%"></i></div><span class="val">' + x.n + '/' + x.span + '</span></div>';
       }).join('') + '</div></section>';
@@ -341,7 +342,7 @@
       var x = S.state.days[d].workout, p = C.workouts.plans.filter(function (q) { return q.id === x.plan; })[0];
       return '<div><b>' + esc(x.kind === 'full' ? (p ? p.name : 'Full session') : C.workouts.minimum.name) + '</b><span>' + D.fmt(d) + '</span></div>';
     }).join('') + '</div>' : '<p class="empty">No sessions logged yet. Log one from the Today page.</p>') + '</section>';
-    return areaHead(a, st) + suggest + '<div class="tiles">' + tiles + '</div><div class="cards">' + stepsCard + sessCard + log + habitGridCard(a) + plans + notesCard(a) + '</div>';
+    return areaHead(a, st) + suggest + '<div class="tiles">' + tiles + '</div><div class="cards">' + LD.more.workoutCard() + stepsCard + sessCard + log + LD.more.sectionCharts(a) + habitGridCard(a) + plans + notesCard(a) + '</div>';
   }
 
   /* ---- upkeep ---- */
@@ -405,7 +406,7 @@
       extraTiles = tile('Chores done, last 28 days', String(n), ready ? ready + ' ready now' : 'Nothing waiting');
       bottom = choreBlocks(a, function (c) { return (c.area || 'upkeep') === 'upkeep'; });
     }
-    return areaHead(a, st) + '<div class="tiles">' + genericTiles(a) + extraTiles + '</div><div class="cards">' + top + habitGridCard(a) + trendCard(a) + ratesCard(a) + bottom + notesCard(a) + '</div>';
+    return areaHead(a, st) + '<div class="tiles">' + genericTiles(a) + extraTiles + '</div><div class="cards">' + top + habitGridCard(a) + trendCard(a) + ratesCard(a) + LD.more.sectionCharts(a) + bottom + notesCard(a) + '</div>';
   }
 
   /* ================= JOURNEY ================= */
@@ -446,7 +447,7 @@
     }).join('') + '</div></section>';
     var tiles = '<div class="tiles">' + tile('Total XP', num(st.total)) + tile('Days logged', String(st.totals.daysLogged)) + tile('Habit ticks', num(st.totals.ticks)) +
       tile('Workouts', String(st.totals.workouts)) + tile('Chores done', String(st.totals.chores)) + tile('Steps walked', num(st.totals.steps)) + '</div>';
-    return head + tiles + '<div class="cards">' + trail + skills + xpCard + cumCard + log + miles + '</div>' + LD.more.insights();
+    return LD.more.subnav('journey') + head + tiles + '<div class="cards">' + trail + skills + xpCard + cumCard + log + miles + '</div>' + LD.more.insights();
   }
 
   /* ================= SETTINGS ================= */
@@ -467,19 +468,23 @@
   }
   /* a habit in Settings. The pencil opens a small form: rename it, move it to another time of day, change its place in the list. */
   function habitRow(h) {
-    var a = LD.areaById[h.area], label = txt(h);
+    var a = LD.areaById[h.area], label = txt(h), dys = S.state.settings.days[h.id];
     if (view.edit === 'habits:' + h.id) {
       var raw = S.text(h);
+      var chips = '<div class="daysrow"><span>On these days</span>' + ['M', 'T', 'W', 'T', 'F', 'S', 'S'].map(function (L, i) {
+        return '<label class="daychip"><input type="checkbox" name="d' + i + '"' + (!dys || dys.indexOf(i) >= 0 ? ' checked' : '') + ' aria-label="' + D.dayNames[i] + '"><span>' + L + '</span></label>';
+      }).join('') + '</div>';
       return '<form class="sw edit" data-form="edit-habit" data-id="' + h.id + '"><input type="text" name="t" maxlength="80" value="' + esc(raw) + '" aria-label="Name" data-key="rename">' +
         '<label class="mini">Shows in<select name="group">' + groupOptions(h.group) + '</select></label>' +
-        (h.custom ? '<label class="mini">Counts towards<select name="area">' + areaOptions(h.area) + '</select></label>' : '') +
+        (h.custom ? '<label class="mini">Counts towards<select name="area">' + areaOptions(h.area) + '</select></label>' : '') + chips +
         '<div class="btnrow"><button class="btn sm primary">Save</button><button type="button" class="btn sm ghost" data-act="edit-cancel">Cancel</button>' +
         '<button type="button" class="btn sm ghost" data-act="move" data-id="' + h.id + '" data-dir="-1" aria-label="Move up the list" title="Move up" data-key="mv-up">▲</button>' +
         '<button type="button" class="btn sm ghost" data-act="move" data-id="' + h.id + '" data-dir="1" aria-label="Move down the list" title="Move down" data-key="mv-down">▼</button>' +
         (h.custom ? '<button type="button" class="btn sm danger" data-act="remove" data-kind="habits" data-id="' + h.id + '">Remove</button>' : '') + '</div>' +
         (raw.indexOf('{') >= 0 ? '<small>{wake}, {bed} and {screens} are filled in from your target times.</small>' : '') + '</form>';
     }
-    return '<div class="sw"><span class="dot" style="background:' + a.color + '" title="Counts towards ' + a.name + '"></span><span class="nm">' + esc(label) + '</span>' +
+    return '<div class="sw"><span class="dot" style="background:' + a.color + '" title="Counts towards ' + a.name + '"></span><span class="nm">' + esc(label) +
+      (dys ? '<small>' + dys.map(function (i) { return D.dayNames[i].slice(0, 3); }).join(', ') + ' only</small>' : '') + '</span>' +
       '<button class="x" data-act="edit" data-kind="habits" data-id="' + h.id + '" aria-label="Change ' + esc(label) + '" title="Rename, move or reorder" data-key="ed-' + h.id + '">' + icon('pencil') + '</button>' + toggle('habits', h, label) + '</div>';
   }
   function settings(st) {
@@ -530,6 +535,7 @@
       fld('New day starts at (hour, 0 to 8)', 'set', 'dayStartsHour', 'number', s.dayStartsHour, 'min="0" max="8"') +
       fld('Last night card shows until (hour)', 'ui', 'lastNightUntil', 'number', ui.lastNightUntil, 'min="6" max="23"') + '</div>' +
       check('Show the Last night card', 'Lets you tick the bedtime habits the next morning.', 'lastNight') +
+      check('Daily energy and mood check-in', 'Two optional taps on the Today page that feed the Stats charts.', 'checkin') +
       check('Suggest a new step goal', 'Offers a higher goal when you keep hitting it, or a lower one when it is out of reach.', 'suggestGoal') + '</section>';
 
     var rewards = '<section class="card"><header><h3>' + icon('star') + ' Rewards</h3></header><p class="sub">How much XP things are worth. Changing these re-scores your history too.</p><div class="fields">' +
@@ -648,7 +654,7 @@
       view.pop = null;
     }
     if (key) { var el = $app.querySelector('[data-key="' + key + '"]'); if (el) el.focus({ preventScroll: true }); }
-    document.title = ({ journey: 'Journey', settings: 'Settings', grove: 'Grove', week: 'Week in review' }[r] || (a && S.isOn('areas', a) ? a.name : 'Today')) + ' · ' + S.name();
+    document.title = ({ journey: 'Journey', settings: 'Settings', grove: 'Grove', week: 'Week in review', stats: 'Stats' }[r] || (a && S.isOn('areas', a) ? a.name : 'Today')) + ' · ' + S.name();
   }
 
   /* ---------------- effects ---------------- */
@@ -804,6 +810,9 @@
       S.rename(f.dataset.id, hb && v === hb.text ? '' : v);
       S.setGroup(f.dataset.id, f.elements.group.value);
       if (f.elements.area) S.setArea(f.dataset.id, f.elements.area.value);
+      var days = [];
+      for (var di = 0; di < 7; di++) if (f.elements['d' + di] && f.elements['d' + di].checked) days.push(di);
+      S.setDays(f.dataset.id, days);
       view.edit = null;
     }
     else if (kind === 'add-here') { S.addHabit(v, f.elements.area.value, f.dataset.group); view.addTo = null; toast('Habit added'); }

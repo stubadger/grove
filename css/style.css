@@ -489,6 +489,39 @@ form.sw.edit .btnrow { flex-basis: 100%; }
 .banner.crash { max-width: 1128px; margin: 14px auto 0; border-color: #a8742f; }
 .version { text-align: center; color: var(--muted); font-size: 12px; margin: 22px 0 0; }
 
+/* ---------- stats, check-in, workout log, day chips ---------- */
+.subnav { display: flex; gap: 6px; margin: 0 0 14px; flex-wrap: wrap; }
+.subnav a { padding: 7px 14px; border-radius: 999px; border: 1px solid var(--line); background: var(--surface); color: var(--text2); text-decoration: none; font-size: 14px; }
+.subnav a:hover { border-color: var(--line2); color: var(--text); }
+.subnav a.on { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); font-weight: 600; }
+.feel { display: flex; align-items: center; gap: 12px; padding: 7px 0; }
+.feel .lab { width: 62px; color: var(--text2); font-size: 14px; }
+.feel .scale { display: flex; align-items: flex-end; gap: 5px; }
+.feel .lvl { width: 34px; height: 40px; padding: 0 0 6px; display: flex; align-items: flex-end; justify-content: center; background: none; border: 0; border-radius: 8px; }
+.feel .lvl:hover { background: var(--surface2); }
+.feel .lvl i { display: block; width: 16px; border-radius: 4px; background: color-mix(in srgb, var(--accent2) 26%, transparent); transition: background .15s; }
+.feel .lvl.on i { background: var(--accent); }
+.feel .word { color: var(--text); font-size: 14px; min-width: 44px; }
+.exgrid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 8px 18px; }
+.exrow { display: flex; gap: 8px; align-items: center; }
+.exrow .tick { flex: 1; min-width: 0; }
+.exrow .tick small { color: var(--muted); font-size: 12px; }
+.kg { display: flex; align-items: center; gap: 5px; color: var(--muted); font-size: 13px; flex: none; }
+.kg input[type=number] { width: 82px; padding: 7px 8px; font-size: 14px; }
+.minis { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 14px; }
+.mini { border: 1px solid var(--line); border-radius: 12px; padding: 10px 12px 6px; background: var(--bg2); min-width: 0; }
+.minihead { display: flex; justify-content: space-between; gap: 8px; align-items: baseline; margin-bottom: 4px; }
+.minihead b { font: 600 14px var(--serif); }
+.rates.two { grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 12px 26px; }
+.rate .nm .dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 7px; }
+.daysrow { display: flex; align-items: center; gap: 5px; flex-basis: 100%; flex-wrap: wrap; font-size: 12px; color: var(--muted); }
+.daysrow > span { margin-right: 4px; }
+.sw .daychip input[type=checkbox] { position: absolute; opacity: 0; width: 1px; height: 1px; border: 0; }
+.sw .daychip input[type=checkbox]::after { display: none; }
+.daychip span { display: grid; place-items: center; width: 30px; height: 30px; border-radius: 8px; border: 1px solid var(--line2); color: var(--muted); font-size: 13px; cursor: pointer; }
+.daychip input:checked + span { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); font-weight: 600; }
+.daychip input:focus-visible + span { outline: 2px solid var(--accent); outline-offset: 2px; }
+
 /* ---------- small screens ---------- */
 @media (max-width: 760px) {
   .navin { height: 50px; }

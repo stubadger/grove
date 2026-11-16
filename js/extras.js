@@ -23,9 +23,10 @@
     dates: function (ws) { return D.range(D.add(ws, 6), 7); },
     /* how many times the quest's thing happened on these dates */
     count: function (q, dates) {
-      var n = 0, group = q.kind === 'group' ? S.habits().filter(function (h) { return h.group === q.ref; }) : null;
+      var n = 0;
       dates.forEach(function (d) {
         var day = S.state.days[d] || {}, ck = day.checks || {}, id;
+        var group = q.kind === 'group' ? S.habitsFor(d).filter(function (h) { return h.group === q.ref; }) : null;
         if (q.kind === 'habit') { if (ck[q.ref]) n++; }
         else if (q.kind === 'workouts') { if (day.workout) n++; }
         else if (q.kind === 'stepgoal') { if (day.steps && day.steps >= G.goalFor(day)) n++; }
@@ -123,6 +124,7 @@
       var worst = null;
       S.habits().forEach(function (h) {
         var c = ticks(h.id, w1) + ticks(h.id, w0);
+        if (s.days[h.id]) return;   /* a habit set to certain days is expected to be ticked less often */
         if (h.id !== 'up' && c <= 1 && (!worst || c < worst.c)) worst = { h: h, c: c };
       });
       if (worst) out.push({ id: 'pause:' + worst.h.id, title: 'A habit that is not sticking',
@@ -161,7 +163,7 @@
     var logged = dates.filter(function (d) { return G.dayPct(d) != null; });
     var on = function (id) { return S.habits().some(function (h) { return h.id === id; }); };
     var rest = function (d, skipId) {
-      var hs = S.habits().filter(function (h) { return h.id !== skipId; });
+      var hs = S.habitsFor(d).filter(function (h) { return h.id !== skipId; });
       return hs.length ? hs.filter(function (h) { return checks(d)[h.id]; }).length / hs.length : null;
     };
     var pc = function (v) { return Math.round(v * 100) + '%'; };
@@ -182,6 +184,13 @@
       yes: function (d) { return !!(S.state.days[d] || {}).workout; }, val: function (d) { return (S.state.days[d] || {}).steps || null; } });
     if (on('homemade') && S.chores().some(function (c) { return c.id === 'mealprep'; })) split({ id: 'prep', title: 'Home-made meals after a batch cook', la: 'Within three days of a batch cook', lb: 'Other days', fmt: pc, max: 1,
       yes: function (d) { return (S.state.chores.mealprep || []).some(function (x) { var g = D.diff(d, x); return g >= 0 && g <= 3; }); }, val: function (d) { return checks(d).homemade ? 1 : 0; } });
+    if (S.state.settings.ui.checkin) {
+      var of5 = function (v) { return (Math.round(v * 10) / 10).toFixed(1) + ' of 5'; }, feel = function (d, k) { return (S.state.days[d] || {})[k] || null; };
+      if (on('bed')) split({ id: 'energy', title: 'Energy the day after getting to bed on time', la: 'After an on-time night', lb: 'After a late night', fmt: of5, max: 5,
+        yes: function (d) { var y = D.add(d, -1); return S.state.days[y] ? !!checks(y).bed : null; }, val: function (d) { return feel(d, 'energy'); } });
+      if (S.isOn('areas', LD.areaById.move)) split({ id: 'mood', title: 'Mood on workout days', la: 'Workout days', lb: 'Other days', fmt: of5, max: 5,
+        yes: function (d) { return !!(S.state.days[d] || {}).workout; }, val: function (d) { return feel(d, 'mood'); } });
+    }
     return out;
   };
   /* how much of the list gets done on each day of the week */

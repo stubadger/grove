@@ -27,8 +27,10 @@
   };
 
   LD.areaById = {}; C.areas.forEach(function (a) { LD.areaById[a.id] = a; });
+  /* the key an exercise is saved under, made from its name */
+  LD.exKey = function (name) { return String(name).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, ''); };
   var cfgHabit = {}; C.habits.forEach(function (h) { cfgHabit[h.id] = h; });
-  var UI_DEFAULTS = { sky: 'auto', season: 'auto', hemi: 'auto', falling: true, fx: true, lastNight: true, lastNightUntil: 15, suggestGoal: true, name: '' };
+  var UI_DEFAULTS = { sky: 'auto', season: 'auto', hemi: 'auto', falling: true, checkin: true, fx: true, lastNight: true, lastNightUntil: 15, suggestGoal: true, name: '' };
 
   /* ---------------- store ---------------- */
   var KEY = 'grove.v1', REAL = 'grove.v1.real', SNAP = 'grove.v1.snap.';
@@ -47,6 +49,7 @@
       s.xp = {};                                 // overrides for config xp values
       s.custom = { habits: [], chores: [], meals: [] };   // items added by the owner
       s.decor = {};                              // decoration id -> false when hidden
+      s.days = {};                               // habit id -> weekdays it applies on (0 = Monday); absent means every day
       s.group = {};                              // habit id -> the card it was moved to (morning, day, evening)
       s.order = [];                              // habit ids in the owner's chosen order
       s.remind = { morning: true, winddown: true, evening: true, eveningAt: '20:30' };   // phone reminders to put in the calendar file
@@ -205,6 +208,28 @@
         return { h: c, k: o < 0 ? 1e6 + i : o };
       }).sort(function (a, b) { return a.k - b.k; }).map(function (x) { return x.h; });
     },
+    /* A habit can be limited to certain weekdays. On other days it is not shown and does not count for or against anything. */
+    scheduled: function (h, date) { var d = S.state.settings.days[h.id]; return !d || d.indexOf(D.dow(date)) >= 0; },
+    habitsFor: function (date, areaId) { return S.habits(areaId).filter(function (h) { return S.scheduled(h, date); }); },
+    setDays: function (id, days) {
+      if (!days.length || days.length === 7) delete S.state.settings.days[id]; else S.state.settings.days[id] = days;
+      S.save();
+    },
+    /* energy or mood for a day, 1 to 5. Tapping the same value again clears it. */
+    setFeel: function (date, key, v) {
+      var d = S.day(date, true);
+      if (d[key] === v) delete d[key]; else d[key] = v;
+      S.save();
+    },
+    /* one exercise in a day's workout: ticked or not, and the weight used. Ticking anything logs a full session. */
+    setExercise: function (date, key, change) {
+      var d = S.day(date, true), k;
+      if (!d.workout || d.workout.kind !== 'full') d.workout = { kind: 'full', plan: LD.game.nextPlan(date) };
+      d.workout.sets = d.workout.sets || {};
+      var e = d.workout.sets[key] || (d.workout.sets[key] = {});
+      for (k in change) { if (change[k] == null) delete e[k]; else e[k] = change[k]; }
+      S.save();
+    },
     /* put a habit on another card (morning, day, evening), or change which section a habit the owner added counts towards */
     setGroup: function (id, group) { S.state.settings.group[id] = group; S.save(); },
     setArea: function (id, area) {
@@ -340,7 +365,21 @@
           day.steps = Math.max(1200, Math.round((3600 + 4600 * prog + (rnd() - 0.5) * 3800) / 10) * 10);
           if ([0, 2, 4].indexOf(D.dow(d)) >= 0 && rnd() < 0.4 + 0.5 * prog) {
             var full = rnd() < 0.75;
-            day.workout = { kind: full ? 'full' : 'min', plan: full ? C.workouts.plans[flip++ % C.workouts.plans.length].id : 'min' };
+            var pl = C.workouts.plans[flip % C.workouts.plans.length];
+            day.workout = { kind: full ? 'full' : 'min', plan: full ? pl.id : 'min' };
+            if (full) {
+              flip++; day.workout.sets = {};
+              pl.exercises.forEach(function (e, ei) {
+                var set = { d: 1 };
+                if (!/bodyweight|^bar,|rope/.test(e.kit)) set.kg = Math.round((8 + ei * 4 + prog * 10 + rnd() * 2) * 2) / 2;
+                day.workout.sets[LD.exKey(e.name)] = set;
+              });
+            }
+          }
+          if (rnd() < 0.8) {
+            var lift = day.checks.bed ? 0.5 : 0;
+            day.energy = Math.max(1, Math.min(5, Math.round(2.3 + prog * 1.2 + lift + (rnd() - 0.5) * 2)));
+            day.mood = Math.max(1, Math.min(5, Math.round(2.6 + prog * 1.1 + (day.workout ? 0.5 : 0) + (rnd() - 0.5) * 2)));
           }
         }
         st.days[d] = day;
@@ -400,6 +439,8 @@
         add('move', G.stepsXP(day));
         if (day.workout) add('move', S.xp(day.workout.kind === 'full' ? 'workoutFull' : 'workoutMin'));
         (day.tasks || []).forEach(function (t) { if (t.d) add('tasks', C.xp.task); });
+        if (day.energy) add('upkeep', C.xp.checkin);   /* noticing how you are counts as looking after yourself */
+        if (day.mood) add('upkeep', C.xp.checkin);
       }
       C.chores.concat(S.state.settings.custom.chores).forEach(function (ch) {
         if ((S.state.chores[ch.id] || []).indexOf(date) >= 0) add(ch.area || 'upkeep', ch.xp);
@@ -457,7 +498,7 @@
 
     /* one section on one day: how much of what was possible got done */
     areaDay: function (areaId, date) {
-      var day = S.day(date), hs = S.habits(areaId), done = 0, of = hs.length;
+      var day = S.day(date), hs = S.habitsFor(date, areaId), done = 0, of = hs.length;
       hs.forEach(function (h) { if (day.checks[h.id]) done++; });
       if (areaId === 'move') { of += 1; if (day.steps) done += Math.min(1, day.steps / G.goalFor(day)); }
       if (areaId === 'tasks') { var t = day.tasks || []; of = t.length; done = t.filter(function (x) { return x.d; }).length; }
@@ -466,7 +507,7 @@
     /* whole-day completion 0..1, or null when nothing was logged */
     dayPct: function (date) {
       var day = S.state.days[date];
-      var any = day && (Object.keys(day.checks || {}).length || day.steps || day.workout);
+      var any = day && (Object.keys(day.checks || {}).length || day.steps || day.workout || day.energy || day.mood);
       if (!any) {
         for (var id in S.state.chores) if (S.state.chores[id].indexOf(date) >= 0) { any = true; break; }
       }

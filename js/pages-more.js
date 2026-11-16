@@ -122,7 +122,7 @@
         }).join('') + '</div>' : '<p class="empty">Nothing needs changing. Your targets fit how the last two weeks went, so carry on as you are.</p>') + '</section>';
     }
     var nextUp = finished && sel === 'this' ? '<section class="card"><header><h3>' + U.icon('sun') + ' Next week</h3></header><p class="empty">Two new quests arrive on Monday, set by how this week went. You can plan next week’s meals on the <a href="#/food">Food page</a>.</p></section>' : '';
-    return head + tiles + '<div class="cards">' + sections + quests + pattern + nextUp + checkup + '</div>';
+    return LD.more.subnav('week') + head + tiles + '<div class="cards">' + sections + quests + pattern + nextUp + checkup + '</div>';
   };
   LD.actions['week-sel'] = function (d) { LD.ui.view.week = d.v; LD.ui.render(); };
   LD.actions['checkin-apply'] = function (d) {
