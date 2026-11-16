@@ -14,7 +14,7 @@ window.LD = window.LD || {};
 LD.config = {
   appName: 'Grove',
   /* Shown at the bottom of Settings so it is easy to tell which version a device is running. Change it with every publish. */
-  version: '16 November 2026, b',
+  version: '16 November 2026, c',
   /* Where the published copy lives. Used for the link inside phone reminders. */
   siteUrl: 'https://stubadger.github.io/grove/',
 

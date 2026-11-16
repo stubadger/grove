@@ -6,7 +6,7 @@
 
    FILES is fetched when this is first installed, so the app works offline even before every page has
    been visited. Add any new file the app loads to this list. */
-var CACHE = 'grove-2';
+var CACHE = 'grove-3';
 var FILES = [
   './', 'index.html', 'css/style.css', 'manifest.webmanifest', 'icons/icon-180.png', 'icons/icon-192.png',
   'js/config.js', 'js/core.js', 'js/sync.js', 'js/charts.js', 'js/plants.js', 'js/scene.js', 'js/extras.js', 'js/pages-more.js', 'js/stats.js', 'js/app.js'
